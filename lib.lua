@@ -1,4 +1,3 @@
-```
 -- / Locals
 local Workspace = game:GetService("Workspace")
 local Player = game:GetService("Players").LocalPlayer
@@ -3648,4 +3647,3 @@ sliderBackground.BackgroundTransparency = 0.18
     return TabLibrary
 end
 return library
-```
