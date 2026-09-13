@@ -90,7 +90,7 @@ do
             Name = "Skin Slot",
             Flag = "SkinSlot",
             Scrollable = #(Library.ListSkinNames and Library.ListSkinNames() or {}) > 5,
-            Default = (Library.BuildSlotNamesList and Library.BuildSlotNamesList()[1]) or "A",
+            Default = (Library.GetSlotName and Library.GetSlotName(1)) or "Slot 1",
             Items = (Library.BuildSlotNamesList and Library.BuildSlotNamesList()) or { "A", "B", "C", "D" },
             Callback = function(Value)
                 selectedSkinSlot = parseSlot(Value)
@@ -101,11 +101,11 @@ do
             end
         })
 
-        -- Textbox under it for renaming slot
+        -- Optional name used when saving the selected slot
         SkinManager:Textbox({
-            Name = "Rename Slot Textbox",
-            Placeholder = "Enter new slot name...",
-            Flag = "RenameSlotInput",
+            Name = "Skin Name",
+            Placeholder = "Enter skin name...",
+            Flag = "SaveSkinName",
             Numeric = false,
             Finished = true,
             Callback = function(Value)
@@ -113,50 +113,38 @@ do
             end
         })
 
-        -- Button: Rename slot
+        -- Button: Save skin and optional name to slot
         SkinManager:Button({
-            Name = "Rename Slot",
-            Tooltip = "Rename selected skin slot",
-            Callback = function()
-                local slot = selectedSkinSlot or "A"
-                if slot == 0 then
-                    Library:Notification("The default skin cannot be renamed.", 3, Color3.fromRGB(255, 100, 100))
-                    return
-                end
-                local newName = (Library.Flags["RenameSlotInput"] or ""):gsub("^%s+", ""):gsub("%s+$", "")
-                if newName ~= "" then
-                    if Library.SetSlotName then
-                        Library.SetSlotName(slot, newName)
-                    end
-                    if Library.GetSkinsList then
-                        Library:GetSkinsList(SkinSlotDropdown)
-                    end
-                    -- Update dropdown label to the new name
-                    SkinSlotDropdown:SetText("Skin Slot (" .. newName .. ")")
-                    Library:Notification("Renamed slot to \"" .. newName .. "\"", 3, Color3.fromRGB(0, 255, 120))
-                else
-                    Library:Notification("Please type a slot name first!", 3, Color3.fromRGB(255, 100, 100))
-                end
-            end
-        })
-
-        -- Button: Save skin to slot
-        SkinManager:Button({
-            Name = "Save Skin to Slot",
-            Tooltip = "Save current avatar to selected slot",
+            Name = "Save Skin Slot",
+            Tooltip = "Save and name the selected skin slot",
             Callback = function()
                 local slot = selectedSkinSlot or "A"
                 if slot == 0 then
                     Library:Notification("Cannot overwrite default skin.", 3, Color3.fromRGB(255, 100, 100))
                     return
                 end
+
+                local newName = (Library.Flags["SaveSkinName"] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                if newName ~= "" and Library.SetSlotName then
+                    local renamed, renameError = Library.SetSlotName(slot, newName)
+                    if not renamed then
+                        Library:Notification("Failed to name skin: " .. tostring(renameError or "error"), 3,
+                            Color3.fromRGB(255, 100, 100))
+                        return
+                    end
+                end
+
                 if Library.SaveSkinToSlot then
                     local ok, err = Library.SaveSkinToSlot(slot)
                     if ok then
                         if Library.GetSkinsList then
                             Library:GetSkinsList(SkinSlotDropdown)
                         end
-                        Library:Notification("Saved skin to slot " .. tostring(slot) .. "!", 3,
+                        local savedName = Library.GetSlotName and Library.GetSlotName(slot) or tostring(slot)
+                        if SkinSlotDropdown.Set then
+                            SkinSlotDropdown:Set(savedName)
+                        end
+                        Library:Notification("Saved " .. tostring(savedName) .. "!", 3,
                             Color3.fromRGB(0, 255, 120))
                     else
                         Library:Notification("Failed to save skin: " .. tostring(err or "error"), 3,

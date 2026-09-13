@@ -1343,15 +1343,36 @@ do
     end
 
     local function buildSlotNamesList()
-        local names = { DEFAULT_SKIN_NAME }
+        local savedNames = {}
+        local emptySlots = {}
+
         for slot = 1, MAX_SKIN_SLOTS do
-            table.insert(names, getSlotName(slot))
+            local slotName = getSlotName(slot)
+            if skinExists(slotName) then
+                table.insert(savedNames, slotName)
+            else
+                table.insert(emptySlots, slotName)
+            end
         end
 
         for _, skinName in listSkinNames() do
-            if not table.find(names, skinName) then
-                table.insert(names, skinName)
+            if not table.find(savedNames, skinName) then
+                table.insert(savedNames, skinName)
             end
+        end
+
+        table.sort(savedNames, function(left, right)
+            return string.lower(left) < string.lower(right)
+        end)
+
+        table.sort(emptySlots, function(left, right)
+            return string.lower(left) < string.lower(right)
+        end)
+
+        local names = savedNames
+        table.insert(names, DEFAULT_SKIN_NAME)
+        for _, slotName in emptySlots do
+            table.insert(names, slotName)
         end
 
         return names
