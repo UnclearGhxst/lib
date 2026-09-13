@@ -139,6 +139,7 @@ do
                     return
                 end
 
+                local originalName = Library.GetSlotName and Library.GetSlotName(slot)
                 local enteredName = SkinNameInput.Items
                     and SkinNameInput.Items["Input"]
                     and SkinNameInput.Items["Input"].Instance.Text
@@ -165,6 +166,9 @@ do
                         Library:Notification("Saved " .. tostring(savedName) .. "!", 3,
                             Color3.fromRGB(0, 255, 120))
                     else
+                        if newName ~= "" and originalName and newName ~= originalName and Library.SetSlotName then
+                            Library.SetSlotName(slot, originalName)
+                        end
                         local currentName = Library.GetSlotName and Library.GetSlotName(slot)
                         refreshSkinSlotDropdown(currentName)
                         local message = err == "DUPLICATE" and "You already saved this skin."
