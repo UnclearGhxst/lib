@@ -948,8 +948,13 @@ do
     -- Returns the executor workspace skin folder and ensures it exists.
     local function getSkinFolder()
         local folder = Library.Directory .. Library.Folders.Skins
-        if makefolder and isfolder and not isfolder(folder) then
-            pcall(makefolder, folder)
+        if makefolder and isfolder then
+            if not isfolder(Library.Directory) then
+                pcall(makefolder, Library.Directory)
+            end
+            if not isfolder(folder) then
+                pcall(makefolder, folder)
+            end
         end
         return folder
     end

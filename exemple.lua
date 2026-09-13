@@ -1,5 +1,5 @@
 local Library = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/UnclearGhxst/lib/refs/heads/main/Nexonix_Local.lua"))()
+    "https://raw.githubusercontent.com/UnclearGhxst/lib/refs/heads/main/Nexonix_Local.lua?v=20260913"))()
 
 local KeybindList = Library:KeybindList({ Name = "Keybind List" })
 
@@ -94,7 +94,9 @@ do
             Callback = function(Value)
                 selectedSkinSlot = parseSlot(Value)
                 -- Dynamically update the dropdown label to the selected skin name
-                SkinSlotDropdown:SetText("Skin Slot (" .. tostring(getSlotDisplayName(Value)) .. ")")
+                if SkinSlotDropdown then
+                    SkinSlotDropdown:SetText("Skin Slot (" .. tostring(getSlotDisplayName(Value)) .. ")")
+                end
             end
         })
 
