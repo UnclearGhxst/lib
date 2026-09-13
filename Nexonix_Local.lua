@@ -1347,6 +1347,13 @@ do
         for slot = 1, MAX_SKIN_SLOTS do
             table.insert(names, getSlotName(slot))
         end
+
+        for _, skinName in listSkinNames() do
+            if not table.find(names, skinName) then
+                table.insert(names, skinName)
+            end
+        end
+
         return names
     end
 
@@ -1415,7 +1422,7 @@ do
     -- Refresh a dropdown with the current skin list
     Library.GetSkinsList = function(Self, Element)
         if Element and Element.Refresh then
-            Element:Refresh(buildSkinDropdownList())
+            Element:Refresh(buildSlotNamesList(), #listSkinNames() > 5)
         end
     end
     --#endregion
@@ -5652,6 +5659,7 @@ do
                 Callback = Params.Callback or Params.callback or function() end,
                 Multi = Params.Multi or Params.multi or false,
                 Tooltip = Params.Tooltip or Params.tooltip or "",
+                Scrollable = Params.Scrollable or Params.scrollable or #(Params.Items or Params.items or {}) > 5,
 
                 Window = Self.Window,
                 Page = Self.Page,
@@ -5752,15 +5760,10 @@ do
                     BorderSizePixel = 0
                 })
 
-                Items["OptionHolder"] = Library:Create("TextButton", {
+                Items["OptionHolder"] = Library:Create("ScrollingFrame", {
                     Name = "\0",
-                    FontFace = Library.Font,
-                    TextSize = Library.FontSize,
                     Parent = Library.UnusedHolder.Instance,
                     Visible = false,
-                    TextColor3 = Color3.fromRGB(0, 0, 0),
-                    Text = "",
-                    AutoButtonColor = false,
                     Size = UDim2.new(0, 249, 0, 50),
                     BackgroundTransparency = 0.10000000149011612,
                     Position = UDim2.new(0, 15, 0, 164),
@@ -5769,6 +5772,11 @@ do
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundColor3 = Library.Theme["Background"]
                 }):AddToTheme({ BackgroundColor3 = 'Background' })
+
+                Items["OptionHolder"].Instance.Active = true
+                Items["OptionHolder"].Instance.CanvasSize = UDim2.new(0, 0, 0, 0)
+                Items["OptionHolder"].Instance.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                Items["OptionHolder"].Instance.ScrollBarThickness = Dropdown.Scrollable and 4 or 0
 
                 Library:Create("UICorner", {
                     Name = "\0",
@@ -5974,9 +5982,18 @@ do
                 end
             end
 
-            function Dropdown:Refresh(List)
+            function Dropdown:Refresh(List, ScrollOverride)
                 local CurrentValue = Dropdown.Value
                 List = List or {}
+
+                local ShouldScroll = ScrollOverride
+                if ShouldScroll == nil then
+                    ShouldScroll = #List > 5
+                end
+                if ShouldScroll ~= Dropdown.Scrollable then
+                    Dropdown.Scrollable = ShouldScroll
+                    Items["OptionHolder"].Instance.ScrollBarThickness = ShouldScroll and 4 or 0
+                end
 
                 for Index, Value in Dropdown.Options do
                     Dropdown:Remove(Value.Name)
@@ -6052,7 +6069,8 @@ do
                     Items["Icon_"]:Tween({ Rotation = -90 })
                     OptionHolder.Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,
                         RealDropdown.AbsolutePosition.Y + RealDropdown.AbsoluteSize.Y + GuiInset)
-                    OptionHolder.Size = UDim2.new(0, RealDropdown.AbsoluteSize.X, 0, Dropdown.MaxSize)
+                    local MaxHeight = Dropdown.Scrollable and 5 * 28 or (Dropdown.MaxSize or 200)
+                    OptionHolder.Size = UDim2.new(0, RealDropdown.AbsoluteSize.X, 0, MaxHeight)
 
                     OptionHolder.Parent = Library.Holder.Instance
                     Items["OptionHolder"]:Tween({ Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,

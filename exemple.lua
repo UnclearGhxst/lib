@@ -89,6 +89,7 @@ do
         SkinSlotDropdown = SkinManager:Dropdown({
             Name = "Skin Slot",
             Flag = "SkinSlot",
+            Scrollable = #(Library.ListSkinNames and Library.ListSkinNames() or {}) > 5,
             Default = (Library.BuildSlotNamesList and Library.BuildSlotNamesList()[1]) or "A",
             Items = (Library.BuildSlotNamesList and Library.BuildSlotNamesList()) or { "A", "B", "C", "D" },
             Callback = function(Value)
