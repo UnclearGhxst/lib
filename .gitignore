@@ -1,0 +1,2 @@
+.vscode/
+.DS_Storegit rm -r --cached .vscode
