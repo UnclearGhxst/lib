@@ -107,7 +107,7 @@ do
         updateSkinSlotLabel(SkinSlotDropdown.Value)
 
         -- Optional name used when saving the selected slot
-        SkinManager:Textbox({
+        local SkinNameInput = SkinManager:Textbox({
             Name = "Skin Name",
             Placeholder = "Enter skin name...",
             Flag = "SaveSkinName",
@@ -151,6 +151,7 @@ do
                         if SkinSlotDropdown.Set then
                             SkinSlotDropdown:Set(savedName)
                         end
+                        SkinNameInput:Set("")
                         Library:Notification("Saved " .. tostring(savedName) .. "!", 3,
                             Color3.fromRGB(0, 255, 120))
                     else
