@@ -2176,7 +2176,13 @@ do
                     local NewDuration = Duration - 0.1
                     Duration = NewDuration
 
-                    Items["Duration"].Instance.Text = Library:Round(NewDuration, 0.1) .. "s"
+                    if Library and Library.Round and Items["Duration"] and Items["Duration"].Instance then
+                        Items["Duration"].Instance.Text = Library:Round(NewDuration, 0.1) .. "s"
+                    end
+
+                    if NewDuration <= 0 then
+                        break
+                    end
                 end
             end)
 
@@ -2716,15 +2722,17 @@ do
                     CornerRadius = UDim.new(0, 18)
                 })
 
-                Items["_Avatar"] = Library:Create("Frame", {
+                Items["_Avatar"] = Library:Create("TextButton", {
                     Name = "\0",
                     Parent = Items["Side"].Instance,
                     AnchorPoint = Vector2.new(0.5, 1),
-                    BackgroundTransparency = 1,
+                    BackgroundColor3 = Library.Theme["Inline"],
                     Position = UDim2.new(0.5, 0, 1, -16),
                     Size = UDim2.new(0, 42, 0, 42),
-                    BorderSizePixel = 0
-                })
+                    BorderSizePixel = 0,
+                    Text = "",
+                    AutoButtonColor = false
+                }):AddToTheme({ BackgroundColor3 = "Inline" })
 
                 Library:Create("UICorner", {
                     Name = "\0",
@@ -2744,10 +2752,10 @@ do
                     Name = "\0",
                     Parent = Items["_Avatar"].Instance,
                     AnchorPoint = Vector2.new(0.5, 0.5),
-                    Image = LocalAsset("Logo"),
+                    Image = LocalAsset("Settings"),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0.5, 0, 0.5, 0),
-                    Size = UDim2.new(1, -6, 1, -6),
+                    Size = UDim2.new(1, -12, 1, -12),
                     BorderSizePixel = 0
                 })
 
@@ -2864,37 +2872,6 @@ do
                     AutomaticSize = Enum.AutomaticSize.Y,
                     TextXAlignment = Enum.TextXAlignment.Left
                 }):AddToTheme({ TextColor3 = 'Text', PlaceholderColor3 = 'Dark Text' })
-
-                Items["SettingsButton"] = Library:Create("TextButton", {
-                    Name = "\0",
-                    FontFace = Library.Font,
-                    TextSize = Library.FontSize,
-                    Parent = Items["Top"].Instance,
-                    TextColor3 = Color3.fromRGB(0, 0, 0),
-                    Text = "",
-                    AutoButtonColor = false,
-                    AnchorPoint = Vector2.new(1, 0),
-                    Position = UDim2.new(1, -12, 0, 12),
-                    Size = UDim2.new(0, 40, 0, 40),
-                    BorderSizePixel = 0,
-                    BackgroundColor3 = Library.Theme["Element"]
-                }):AddToTheme({ BackgroundColor3 = 'Element' })
-
-                Library:Create("UICorner", {
-                    Name = "\0",
-                    Parent = Items["SettingsButton"].Instance
-                })
-
-                Items["Icon"] = Library:Create("ImageLabel", {
-                    Name = "\0",
-                    Parent = Items["SettingsButton"].Instance,
-                    AnchorPoint = Vector2.new(0.5, 0.5),
-                    Image = LocalAsset("Settings"),
-                    BackgroundTransparency = 1,
-                    Position = UDim2.new(0.5, 0, 0.5, 0),
-                    Size = UDim2.new(0, 20, 0, 20),
-                    BorderSizePixel = 0
-                })
 
                 Items["Content"] = Library:Create("Frame", {
                     Name = "\0",
@@ -3133,16 +3110,11 @@ do
             do
                 local SettingsItems = {}
 
-                SettingsItems["SettingsWindow"] = Library:Create("TextButton", {
+                SettingsItems["SettingsWindow"] = Library:Create("Frame", {
                     Name = "\0",
-                    FontFace = Library.Font,
-                    TextSize = Library.FontSize,
                     Parent = Library.UnusedHolder.Instance,
-                    TextColor3 = Color3.fromRGB(0, 0, 0),
-                    Text = "",
-                    AutoButtonColor = false,
-                    Position = UDim2.new(0, 1074, 0, 153),
-                    Size = UDim2.new(0, 300, 0, 265),
+                    Position = UDim2.new(0, 0, 0, 0),
+                    Size = UDim2.new(1, 0, 1, 0),
                     BorderSizePixel = 0,
                     BackgroundColor3 = Library.Theme["Background"]
                 }):AddToTheme({ BackgroundColor3 = 'Background' })
@@ -3200,7 +3172,7 @@ do
                 local Debounce = false
 
                 local SettingWindow = SettingsItems["SettingsWindow"].Instance
-                local SettingButton = Items["SettingsButton"].Instance
+                local SettingButton = Items["_Avatar"].Instance
 
                 local RenderStepped
 
@@ -3210,22 +3182,21 @@ do
                     end
 
                     Settings.IsOpen = Bool
-
                     Debounce = true
 
                     if Settings.IsOpen then
-                        SettingWindow.Position = UDim2.new(0, SettingButton.AbsolutePosition.X, 0,
-                            SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y + GuiInset)
+                        -- Settings is now a full in-window page, not a floating popup.
+                        if Window.Current then
+                            Window.Current.Items["Page"].Instance.Visible = false
+                            Window.Current.Items["Inactive"]:Tween({ BackgroundTransparency = 1 })
+                            Window.Current.Items["Inline"]:Tween({ BackgroundTransparency = 1 })
+                            Window.Current.Items["Icon"]:Tween({ ImageColor3 = Library.Theme["Dark Icon"] })
+                        end
 
-                        SettingWindow.Parent = Library.Holder.Instance
+                        SettingWindow.Parent = Items["Content"].Instance
+                        SettingWindow.Position = UDim2.new(0, 0, 0, 0)
+                        SettingWindow.Size = UDim2.new(1, 0, 1, 0)
                         SettingWindow.Visible = true
-
-                        RenderStepped = RunService.RenderStepped:Connect(function()
-                            SettingsItems["SettingsWindow"]:Tween({
-                                Position = UDim2.new(0, SettingButton.AbsolutePosition.X, 0,
-                                    SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y + 10 + GuiInset)
-                            })
-                        end)
 
                         SettingsItems["SettingsWindow"]:FadeDescendants(true, function()
                             Debounce = false
@@ -3233,31 +3204,27 @@ do
 
                         Library.OpenFrames[Settings] = Settings
                     else
-                        SettingsItems["SettingsWindow"]:Tween({ Position = UDim2.new(0, SettingButton.AbsolutePosition.X,
-                            0, SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y - 10 + GuiInset) })
                         SettingsItems["SettingsWindow"]:FadeDescendants(false, function()
                             SettingWindow.Parent = Library.UnusedHolder.Instance
+                            SettingWindow.Visible = false
+
+                            if Window.Current then
+                                Window.Current.Items["Page"].Instance.Visible = true
+                                Window.Current.Items["Inactive"]:Tween({ BackgroundTransparency = 1 })
+                                Window.Current.Items["Inline"]:Tween({ BackgroundTransparency = 1 })
+                                Window.Current.Items["Icon"]:Tween({ ImageColor3 = Library.Theme["Accent"] })
+                            end
+
                             Debounce = false
                         end)
 
-                        if Library.OpenFrames[Settings] then
-                            Library.OpenFrames[Settings] = nil
-                        end
-
-                        for Index, Value in Library.OpenFrames do
-                            Value:SetOpen(false)
-                        end
-
-                        if RenderStepped then
-                            RenderStepped:Disconnect()
-                            RenderStepped = nil
-                        end
+                        Library.OpenFrames[Settings] = nil
                     end
 
                     local Descendants = SettingWindow:GetDescendants()
                     table.insert(Descendants, SettingWindow)
 
-                    for Index, Value in Descendants do
+                    for _, Value in Descendants do
                         if Value.ClassName:find("UI") then
                             continue
                         end
@@ -3266,7 +3233,7 @@ do
                     end
                 end
 
-                Items["SettingsButton"]:Connect("MouseButton1Down", function()
+                Items["_Avatar"]:Connect("MouseButton1Down", function()
                     Settings:SetOpen(not Settings.IsOpen)
                 end)
 
@@ -3359,11 +3326,65 @@ do
                 setmetatable(Settings, Library)
             end
 
-            local ConfigsTab = Settings:AddTab("Configs")
-            local ThemeTab = Settings:AddTab("Theme")
+            -- Configs and Theme share one Settings tab. They are displayed
+            -- side-by-side with a divider in the middle.
+            local ConfigsTab = Settings:AddTab("Settings")
+            local ThemeTab = ConfigsTab
             local OtherTab = Settings:AddTab("Other")
 
+            local ConfigColumn = Library:Create("Frame", {
+                Name = "\0",
+                Parent = ConfigsTab.Items["Content"].Instance,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(0.5, -7, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BorderSizePixel = 0
+            })
+
+            local ThemeColumn = Library:Create("Frame", {
+                Name = "\0",
+                Parent = ConfigsTab.Items["Content"].Instance,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(0.5, -7, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BorderSizePixel = 0
+            })
+
+            local SettingsContentLayout = ConfigsTab.Items["Content"].Instance:FindFirstChildOfClass("UIListLayout")
+            if SettingsContentLayout then
+                SettingsContentLayout.FillDirection = Enum.FillDirection.Horizontal
+                SettingsContentLayout.HorizontalFlex = Enum.UIFlexAlignment.None
+                SettingsContentLayout.VerticalFlex = Enum.UIFlexAlignment.None
+                SettingsContentLayout.Padding = UDim.new(0, 14)
+            end
+
+            Library:Create("UIListLayout", {
+                Name = "\0",
+                Parent = ConfigColumn.Instance,
+                Padding = UDim.new(0, 10),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            })
+
+            Library:Create("UIListLayout", {
+                Name = "\0",
+                Parent = ThemeColumn.Instance,
+                Padding = UDim.new(0, 10),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            })
+
+            Library:Create("Frame", {
+                Name = "\0",
+                Parent = ConfigsTab.Items["Content"].Instance,
+                AnchorPoint = Vector2.new(0.5, 0),
+                Position = UDim2.new(0.5, 0, 0, 0),
+                Size = UDim2.new(0, 1, 1, 0),
+                BackgroundColor3 = Library.Theme["Outline"],
+                BorderSizePixel = 0
+            }):AddToTheme({ BackgroundColor3 = "Outline" })
+
             do -- Configs
+                ConfigsTab:Label({ Name = "Configs", Parent = ConfigColumn })
+
                 local ConfigName
                 local ConfigSelected
                 local ConfigsFolder = Library.Directory .. Library.Folders.Configs .. "/"
@@ -3372,7 +3393,7 @@ do
                     Name = "Configs",
                     Flag = "Configs",
                     Items = {},
-                    Parent = ConfigsTab.Items["Content"],
+                    Parent = ConfigColumn,
                     Multi = false,
                     Callback = function(Value)
                         ConfigSelected = Value
@@ -3383,6 +3404,7 @@ do
                     Name = "Config name",
                     Flag = "ConfigName",
                     Placeholder = "Config name",
+                    Parent = ConfigColumn,
                     Callback = function(Value)
                         ConfigName = Value
                     end
@@ -3390,6 +3412,7 @@ do
 
                 ConfigsTab:Button({
                     Name = "Create",
+                    Parent = ConfigColumn,
                     Callback = function()
                         if ConfigName then
                             if ConfigName == "" then
@@ -3405,6 +3428,7 @@ do
 
                 ConfigsTab:Button({
                     Name = "Delete",
+                    Parent = ConfigColumn,
                     Callback = function()
                         if ConfigSelected then
                             if isfile(ConfigsFolder .. ConfigSelected .. ".json") then
@@ -3419,6 +3443,7 @@ do
 
                 ConfigsTab:Button({
                     Name = "Load",
+                    Parent = ConfigColumn,
                     Callback = function()
                         if ConfigSelected then
                             if isfile(ConfigsFolder .. ConfigSelected .. ".json") then
@@ -3438,6 +3463,7 @@ do
 
                 ConfigsTab:Button({
                     Name = "Save",
+                    Parent = ConfigColumn,
                     Callback = function()
                         if ConfigSelected then
                             if isfile(ConfigsFolder .. ConfigSelected .. ".json") then
@@ -3458,6 +3484,7 @@ do
 
                 ConfigsTab:Button({
                     Name = "Refresh",
+                    Parent = ConfigColumn,
                     Callback = function()
                         Library:GetConfigsList(ConfigsDropdown)
                     end
@@ -3467,14 +3494,20 @@ do
             end
 
             do -- Theming
+                ThemeTab:Label({ Name = "Theme", Parent = ThemeColumn })
+
                 for Index, Value in Library.Theme do
-                    ThemeTab:Label({ Name = Index }):Colorpicker({
+                    local ThemeLabel = ThemeTab:Label({
+                        Name = Index,
+                        Parent = ThemeColumn
+                    })
+
+                    ThemeLabel:Colorpicker({
                         Flag = "Theme" .. Index,
                         Default = Value,
-                        Parent = ThemeTab.Items["Content"],
-                        Callback = function(Value)
-                            Library.Theme[Index] = Value
-                            Library:ChangeTheme(Index, Value)
+                        Callback = function(NewValue)
+                            Library.Theme[Index] = NewValue
+                            Library:ChangeTheme(Index, NewValue)
                         end
                     })
                 end
@@ -3532,10 +3565,12 @@ do
                 })
             end
 
-            Items["SettingsButton"]:OnHover(function()
-                Items["SettingsButton"]:Tween({ BackgroundColor3 = Library.Theme["Hovered Element"] })
+            Items["_Avatar"]:OnHover(function()
+                Items["_Avatar"]:Tween({ BackgroundColor3 = Library.Theme["Hovered Element"] })
+                Items["AvatarImage"]:Tween({ ImageColor3 = Library.Theme["Text"] })
             end, function()
-                Items["SettingsButton"]:Tween({ BackgroundColor3 = Library.Theme["Element"] })
+                Items["_Avatar"]:Tween({ BackgroundColor3 = Library.Theme["Inline"] })
+                Items["AvatarImage"]:Tween({ ImageColor3 = Color3.fromRGB(255, 255, 255) })
             end)
 
             Items["OpenClose"]:Connect("MouseButton1Down", function()
@@ -3792,6 +3827,24 @@ do
             end
 
             function Page:Turn()
+                -- Switching to a normal tab always closes the Settings page.
+                if Settings and Settings.IsOpen then
+                    Settings.IsOpen = false
+
+                    local SettingsGui = Settings.Items and Settings.Items["SettingsWindow"]
+                    if SettingsGui and SettingsGui.Instance then
+                        SettingsGui.Instance.Visible = false
+                        SettingsGui.Instance.Parent = Library.UnusedHolder.Instance
+                    end
+
+                    Library.OpenFrames[Settings] = nil
+
+                    -- Restore the currently displayed main page immediately.
+                    if Page.Window.Current and Page.Window.Current.Items["Page"] then
+                        Page.Window.Current.Items["Page"].Instance.Visible = true
+                    end
+                end
+
                 local Old = Page.Window.Current
 
                 if Old == Page then
