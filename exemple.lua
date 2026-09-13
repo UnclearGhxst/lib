@@ -128,8 +128,10 @@ do
                 if newName ~= "" and Library.SetSlotName then
                     local renamed, renameError = Library.SetSlotName(slot, newName)
                     if not renamed then
-                        Library:Notification("Failed to name skin: " .. tostring(renameError or "error"), 3,
-                            Color3.fromRGB(255, 100, 100))
+                        local message = renameError == "NAME_EXISTS"
+                            and "A skin with this name already exists."
+                            or "Failed to name skin: " .. tostring(renameError or "error")
+                        Library:Notification(message, 3, Color3.fromRGB(255, 100, 100))
                         return
                     end
                 end

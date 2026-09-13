@@ -1418,10 +1418,23 @@ do
     end
 
     local function setSlotName(slot, name)
+        local slotKey = tostring(slot)
         local oldName = getSlotName(slot)
         local cleanName = sanitizeSkinName(name)
         if cleanName == "" then
             return false, "Invalid name"
+        end
+
+        for otherSlot = 1, MAX_SKIN_SLOTS do
+            if tostring(otherSlot) ~= slotKey and getSlotName(otherSlot) == cleanName then
+                return false, "NAME_EXISTS"
+            end
+        end
+
+        for _, savedName in listSkinNames() do
+            if savedName == cleanName and savedName ~= oldName then
+                return false, "NAME_EXISTS"
+            end
         end
 
         if oldName ~= cleanName and skinExists(oldName) then
@@ -1431,7 +1444,7 @@ do
             end
         end
 
-        SlotNames[tostring(slot)] = cleanName
+        SlotNames[slotKey] = cleanName
         saveSlotNames()
         return true
     end
