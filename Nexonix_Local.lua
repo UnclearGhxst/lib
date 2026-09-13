@@ -1284,6 +1284,9 @@ do
             return false, "delfile not supported"
         end
         local success, errorMessage = pcall(delfile, path)
+        if success and isfile(path) then
+            return false, "file still exists"
+        end
         return success, errorMessage
     end
 
