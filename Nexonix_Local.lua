@@ -66,166 +66,90 @@ local CoreGui = cloneref(game:GetService("CoreGui"))
 gethui = gethui or function() return CoreGui end
 
 --#region Local asset manager
--- Assets are cached under nexonix/Assets and GUI properties only receive
--- getcustomasset() paths. The first run downloads missing assets once;
--- subsequent runs use only the executor workspace.
+-- Built-in assets are downloaded from GitHub once and then loaded locally
+-- through getcustomasset(). No Roblox image asset IDs are used.
+local GitHubAssets = {
+    Checkbox       = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/Checkbox.png",
+    Colorpicker    = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/Colorpicker.png",
+    Logo           = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/Logo.png",
+    Search         = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/Search.png",
+    Settings       = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/Settings.png",
+    Checkboard     = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/checkboard.png",
+    DropdownArrow  = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/dropdown_arrow.png",
+    Keybind        = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/keybind.png",
+    PageIcon       = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/page_icon.png",
+    Scrollbar      = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/scrollbar.png",
+    SettingsButton = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/settings_boutton.png"
+}
+
 local function _assetSafeName(Name)
     return tostring(Name):gsub("[^%w%._%-]", "_")
 end
 
--- Executor-safe HTTP downloader with redirect handling.
-local function _httpGet(Url, Depth)
-    Depth = Depth or 0
-
-    if Depth > 6 or type(Url) ~= "string" or not Url:match("^https?://") then
+local function _httpGet(Url)
+    if type(Url) ~= "string" or not Url:match("^https?://") then
         return false, nil, "invalid URL: " .. tostring(Url)
     end
 
     local Request = request or http_request or (syn and syn.request)
-
     if type(Request) == "function" then
         local Ok, Response = pcall(function()
-            return Request({
-                Url = Url,
-                Method = "GET"
-            })
+            return Request({ Url = Url, Method = "GET" })
         end)
-
         if Ok and type(Response) == "table" then
-            local Status = tonumber(Response.StatusCode) or 200
-            local Headers = Response.Headers or {}
-            local Location = Headers.Location or Headers.location
-
-            if Location and Status >= 300 and Status < 400 then
-                Location = tostring(Location)
-                if not Location:match("^https?://") then
-                    local Base = Url:match("^(https?://[^/]+)")
-                    Location = Base and (Base .. "/" .. Location:gsub("^/", "")) or nil
+            local Status = tonumber(Response.StatusCode)
+            if Response.Success == true or (Status and Status >= 200 and Status < 300) then
+                if type(Response.Body) == "string" and #Response.Body > 0 then
+                    return true, Response.Body
                 end
-                if Location then
-                    return _httpGet(Location, Depth + 1)
-                end
+                return false, nil, "empty HTTP response"
             end
-
-            if Status >= 200 and Status < 300
-                and type(Response.Body) == "string"
-                and #Response.Body > 0 then
-                return true, Response.Body
-            end
-
-            return false, nil, "HTTP " .. tostring(Status)
+            return false, nil, "HTTP status " .. tostring(Status or "unknown")
         end
+        return false, nil, Ok and "HTTP request failed" or tostring(Response)
     end
 
-    local Ok, Body = pcall(function()
-        return game:HttpGet(Url)
-    end)
-
+    local Ok, Body = pcall(function() return game:HttpGet(Url) end)
     if Ok and type(Body) == "string" and #Body > 0 then
         return true, Body
     end
-
     return false, nil, tostring(Body)
 end
 
-local function LocalAsset(Source, Name)
-    if Source == nil or Source == "" then
+local function LocalAsset(NameOrPath, Name)
+    if NameOrPath == nil or NameOrPath == "" then return "" end
+    local Source = tostring(NameOrPath)
+    local GitHubUrl = GitHubAssets[Source]
+    local FileName = _assetSafeName(Name or Source)
+
+    if GitHubUrl then
+        Source = GitHubUrl
+        FileName = _assetSafeName(Name or FileName)
+    elseif Source:find("^rbxassetid://") or
+        Source:find("^https?://.*roblox%%.com") or
+        Source:find("^https?://assetdelivery%%.roblox%%.com") then
+        warn("[Nexonix] Roblox asset rejected: " .. Source)
         return ""
-    end
-
-    Source = tostring(Source)
-
-    -- Local executor file: never contact Roblox.
-    if not Source:find("^rbxassetid://") and not Source:find("^https?://") then
-        if isfile(Source) then
-            return getcustomasset(Source)
-        end
-
+    elseif not Source:find("^https?://") then
+        if isfile(Source) then return getcustomasset(Source) end
         local Existing = "nexonix/Assets/" .. _assetSafeName(Source)
-        if isfile(Existing) then
-            return getcustomasset(Existing)
-        end
-
+        if isfile(Existing) then return getcustomasset(Existing) end
         return Source
     end
 
-    local Id = Source:match("rbxassetid://(%d+)")
-    if not Id then
-        Id = Source:match("[?&]id=(%d+)")
-    end
-
-    local FileName = Id and ("asset_" .. Id .. ".png")
-        or (_assetSafeName(Name or Source) .. ".bin")
     local Path = "nexonix/Assets/" .. FileName
+    if not Path:match("%.[%w]+$") then Path = Path .. ".png" end
 
     if not isfile(Path) then
-        local DownloadUrl = Id
-            and ("https://www.roblox.com/asset/?id=" .. Id)
-            or Source
-
-        local Success, Data, Error = _httpGet(DownloadUrl)
-
-        if not Success or type(Data) ~= "string" or #Data == 0 then
-            warn("[Nexonix] Asset download failed: " .. tostring(Source) .. " | " .. tostring(Error))
+        local Success, Data, Error = _httpGet(Source)
+        if not Success then
+            warn("[Nexonix] Failed to download asset: " .. Source .. " | " .. tostring(Error))
             return ""
         end
-
-        local Saved = pcall(function()
-            writefile(Path, Data)
-        end)
-
-        if not Saved or not isfile(Path) then
-            warn("[Nexonix] Could not save asset: " .. Path)
-            return ""
-        end
+        writefile(Path, Data)
     end
-
-    local Success, AssetPath = pcall(function()
-        return getcustomasset(Path)
-    end)
-
-    if Success and type(AssetPath) == "string" and #AssetPath > 0 then
-        return AssetPath
-    end
-
-    warn("[Nexonix] getcustomasset failed: " .. Path)
-    return ""
+    return getcustomasset(Path)
 end
-
-local function LocalAvatar(UserId)
-    local Path = "nexonix/Assets/avatar_" .. tostring(UserId) .. "_420.png"
-
-    if not isfile(Path) then
-        local Success, Url = pcall(function()
-            return Players:GetUserThumbnailAsync(
-                UserId,
-                Enum.ThumbnailType.HeadShot,
-                Enum.ThumbnailSize.Size420x420
-            )
-        end)
-
-        if Success and type(Url) == "string" and Url:match("^https?://") then
-            local DownloadSuccess, Data = _httpGet(Url)
-            if DownloadSuccess and type(Data) == "string" and #Data > 0 then
-                pcall(function()
-                    writefile(Path, Data)
-                end)
-            end
-        end
-    end
-
-    if isfile(Path) then
-        local Success, AssetPath = pcall(function()
-            return getcustomasset(Path)
-        end)
-        if Success then
-            return AssetPath
-        end
-    end
-
-    return ""
-end
-
 --#endregion
 
 
@@ -391,20 +315,6 @@ do
 
     Library.Theme = Themes.Preset
 
-
-    -- Preload every built-in Roblox image into the executor workspace.
-    -- After this completes, all built-in GUI images are local getcustomasset paths.
-    do
-        local _LocalAssets = { "rbxassetid://113351170187860", "rbxassetid://114461119629011",
-            "rbxassetid://115682280990954", "rbxassetid://123677974615593", "rbxassetid://127296511745226",
-            "rbxassetid://128889160605702", "rbxassetid://129245697782918", "rbxassetid://77336523487505",
-            "rbxassetid://77492218953155", "rbxassetid://77749228793011", "rbxassetid://81680855285439",
-            "rbxassetid://18274452449" }
-        for _, _Asset in ipairs(_LocalAssets) do
-            LocalAsset(_Asset)
-        end
-    end
-
     -- Custom Font
     local CustomFont = {}
     do
@@ -545,8 +455,8 @@ do
     Library.Tween = function(Self, Properties, Info, IsRawItem)
         local Object = Self.Instance or IsRawItem
         Info = Info or
-        TweenInfo.new(Library.Animation.Time, Enum.EasingStyle[Library.Animation.Style],
-            Enum.EasingDirection[Library.Animation.Direction])
+            TweenInfo.new(Library.Animation.Time, Enum.EasingStyle[Library.Animation.Style],
+                Enum.EasingDirection[Library.Animation.Direction])
 
         if not Object then
             return
@@ -1082,7 +992,7 @@ do
                     Parent = Data.Parent.Instance,
                     ImageColor3 = Color3.fromRGB(255, 74, 116),
                     AutoButtonColor = false,
-                    Image = LocalAsset("rbxassetid://77492218953155"),
+                    Image = LocalAsset("Colorpicker"),
                     BackgroundTransparency = 1,
                     Size = UDim2.new(0, 20, 0, 20),
                     BorderSizePixel = 0
@@ -1276,7 +1186,7 @@ do
                     ScaleType = Enum.ScaleType.Tile,
                     TileSize = UDim2.new(0, 6, 0, 6),
                     ImageColor3 = Color3.fromRGB(255, 255, 255),
-                    Image = LocalAsset("http://www.roblox.com/asset/?id=18274452449"),
+                    Image = LocalAsset("Checkboard"),
                     BackgroundTransparency = 1,
                     Size = UDim2.new(1, 0, 1, 0),
                     ZIndex = 2,
@@ -1381,8 +1291,10 @@ do
 
                     ColorpickerWindow.Parent = Library.Holder.Instance
                     ColorpickerWindow.Visible = true
-                    Items["ColorpickerWindow"]:Tween({ Position = UDim2.new(0, ColorpickerButton.AbsolutePosition.X, 0,
-                        ColorpickerButton.AbsolutePosition.Y + ColorpickerButton.AbsoluteSize.Y + 10 + GuiInset) })
+                    Items["ColorpickerWindow"]:Tween({
+                        Position = UDim2.new(0, ColorpickerButton.AbsolutePosition.X, 0,
+                            ColorpickerButton.AbsolutePosition.Y + ColorpickerButton.AbsoluteSize.Y + 10 + GuiInset)
+                    })
 
                     Items["ColorpickerWindow"]:FadeDescendants(true, function()
                         Debounce = false
@@ -1396,8 +1308,10 @@ do
 
                     Library.OpenFrames[Colorpicker] = Colorpicker
                 else
-                    Items["ColorpickerWindow"]:Tween({ Position = UDim2.new(0, ColorpickerButton.AbsolutePosition.X, 0,
-                        ColorpickerButton.AbsolutePosition.Y + ColorpickerButton.AbsoluteSize.Y - 10 + GuiInset) })
+                    Items["ColorpickerWindow"]:Tween({
+                        Position = UDim2.new(0, ColorpickerButton.AbsolutePosition.X, 0,
+                            ColorpickerButton.AbsolutePosition.Y + ColorpickerButton.AbsoluteSize.Y - 10 + GuiInset)
+                    })
                     Items["ColorpickerWindow"]:FadeDescendants(false, function()
                         ColorpickerWindow.Parent = Library.UnusedHolder.Instance
                         Debounce = false
@@ -1433,23 +1347,23 @@ do
                 end
 
                 local ValueX = math.clamp(
-                1 -
-                (Input.Position.X - Items["Palette"].Instance.AbsolutePosition.X) /
-                Items["Palette"].Instance.AbsoluteSize.X, 0, 1)
+                    1 -
+                    (Input.Position.X - Items["Palette"].Instance.AbsolutePosition.X) /
+                    Items["Palette"].Instance.AbsoluteSize.X, 0, 1)
                 local ValueY = math.clamp(
-                1 -
-                (Input.Position.Y - Items["Palette"].Instance.AbsolutePosition.Y) /
-                Items["Palette"].Instance.AbsoluteSize.Y, 0, 1)
+                    1 -
+                    (Input.Position.Y - Items["Palette"].Instance.AbsolutePosition.Y) /
+                    Items["Palette"].Instance.AbsoluteSize.Y, 0, 1)
 
                 Colorpicker.Saturation = ValueX
                 Colorpicker.Value = ValueY
 
                 local SlideX = math.clamp(
-                (Input.Position.X - Items["Palette"].Instance.AbsolutePosition.X) /
-                Items["Palette"].Instance.AbsoluteSize.X, 0, 0.92)
+                    (Input.Position.X - Items["Palette"].Instance.AbsolutePosition.X) /
+                    Items["Palette"].Instance.AbsoluteSize.X, 0, 0.92)
                 local SlideY = math.clamp(
-                (Input.Position.Y - Items["Palette"].Instance.AbsolutePosition.Y) /
-                Items["Palette"].Instance.AbsoluteSize.Y, 0, 0.92)
+                    (Input.Position.Y - Items["Palette"].Instance.AbsolutePosition.Y) /
+                    Items["Palette"].Instance.AbsoluteSize.Y, 0, 0.92)
 
                 Items["PaletteDragger"]:Tween({ Position = UDim2.new(SlideX, 0, SlideY, 0) },
                     TweenInfo.new(Library.Animation.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
@@ -1465,13 +1379,15 @@ do
                 end
 
                 local ValueY = math.clamp(
-                (Input.Position.Y - Items["Hue"].Instance.AbsolutePosition.Y) / Items["Hue"].Instance.AbsoluteSize.Y, 0,
+                    (Input.Position.Y - Items["Hue"].Instance.AbsolutePosition.Y) / Items["Hue"].Instance.AbsoluteSize.Y,
+                    0,
                     1)
 
                 Colorpicker.Hue = ValueY
 
                 local SlideY = math.clamp(
-                (Input.Position.Y - Items["Hue"].Instance.AbsolutePosition.Y) / Items["Hue"].Instance.AbsoluteSize.Y, 0,
+                    (Input.Position.Y - Items["Hue"].Instance.AbsolutePosition.Y) / Items["Hue"].Instance.AbsoluteSize.Y,
+                    0,
                     0.92)
 
                 Items["HueDragger"]:Tween({ Position = UDim2.new(0, 0, SlideY, 0) },
@@ -1488,13 +1404,15 @@ do
                 end
 
                 local ValueX = math.clamp(
-                (Input.Position.X - Items["Alpha"].Instance.AbsolutePosition.X) / Items["Alpha"].Instance.AbsoluteSize.X,
+                    (Input.Position.X - Items["Alpha"].Instance.AbsolutePosition.X) /
+                    Items["Alpha"].Instance.AbsoluteSize.X,
                     0, 1)
 
                 Colorpicker.Alpha = ValueX
 
                 local SlideX = math.clamp(
-                (Input.Position.X - Items["Alpha"].Instance.AbsolutePosition.X) / Items["Alpha"].Instance.AbsoluteSize.X,
+                    (Input.Position.X - Items["Alpha"].Instance.AbsolutePosition.X) /
+                    Items["Alpha"].Instance.AbsoluteSize.X,
                     0, 0.92)
 
                 Items["AlphaDragger"]:Tween({ Position = UDim2.new(SlideX, 0, 0, 0) },
@@ -1657,7 +1575,7 @@ do
                     Name = "\0",
                     Parent = Data.Parent.Instance,
                     AutoButtonColor = false,
-                    Image = LocalAsset("rbxassetid://123677974615593"),
+                    Image = LocalAsset("Settings"),
                     BackgroundTransparency = 1,
                     Size = UDim2.new(0, 20, 0, 20),
                     BorderSizePixel = 0
@@ -1724,7 +1642,7 @@ do
                     Name = "\0",
                     Parent = Items["KeyButton"].Instance,
                     AnchorPoint = Vector2.new(0, 0.5),
-                    Image = LocalAsset("rbxassetid://113351170187860"),
+                    Image = LocalAsset("Keybind"),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 8, 0.5, 0),
                     Size = UDim2.new(0, 18, 0, 17),
@@ -1853,8 +1771,10 @@ do
                         KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y + GuiInset)
 
                     KeybindWindow.Parent = Library.Holder.Instance
-                    Items["KeybindWindow"]:Tween({ Position = UDim2.new(0, KeyButton.AbsolutePosition.X, 0,
-                        KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y + 10 + GuiInset) })
+                    Items["KeybindWindow"]:Tween({
+                        Position = UDim2.new(0, KeyButton.AbsolutePosition.X, 0,
+                            KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y + 10 + GuiInset)
+                    })
 
                     Items["KeybindWindow"]:FadeDescendants(true, function()
                         Debounce = false
@@ -1868,8 +1788,10 @@ do
 
                     Library.OpenFrames[Keybind] = Keybind
                 else
-                    Items["KeybindWindow"]:Tween({ Position = UDim2.new(0, KeyButton.AbsolutePosition.X, 0,
-                        KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y - 10 + GuiInset) })
+                    Items["KeybindWindow"]:Tween({
+                        Position = UDim2.new(0, KeyButton.AbsolutePosition.X, 0,
+                            KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y - 10 + GuiInset)
+                    })
                     Items["KeybindWindow"]:FadeDescendants(false, function()
                         Items["KeybindWindow"].Instance.Parent = Library.UnusedHolder.Instance
                         Debounce = false
@@ -1977,7 +1899,7 @@ do
 
                     local KeyString = Keys[Keybind.Key] or string.gsub(Key, "Enum.", "") or "None"
                     local TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "") or
-                    "None"
+                        "None"
 
                     Keybind.Value = TextToDisplay
                     Items["Text"].Instance.Text = TextToDisplay
@@ -2005,7 +1927,7 @@ do
 
                     local KeyString = Keys[Keybind.Key] or string.gsub(tostring(RealKey), "Enum.", "") or RealKey
                     local TextToDisplay = KeyString and
-                    string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None"
+                        string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None"
 
                     TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "")
 
@@ -2279,7 +2201,7 @@ do
 
             local Watermark = {
                 Name = Params.Name or Params.name or "Nexonix",
-                Logo = LocalAsset(Params.Logo or Params.logo or "rbxassetid://77749228793011"),
+                Logo = LocalAsset(Params.Logo or Params.logo or "Logo"),
 
                 Items = {}
             }
@@ -2537,7 +2459,7 @@ do
                     Name = "\0",
                     Parent = NewKey.Instance,
                     AnchorPoint = Vector2.new(0, 0.5),
-                    Image = LocalAsset("rbxassetid://114461119629011"),
+                    Image = LocalAsset("Checkbox"),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 0, 0.5, 0),
                     Size = UDim2.new(0, 14, 0, 14),
@@ -2720,7 +2642,7 @@ do
             Params = Params or {}
 
             local Window = {
-                Logo = LocalAsset(Params.Logo or Params.logo or "rbxassetid://77749228793011"),
+                Logo = LocalAsset(Params.Logo or Params.logo or "Logo"),
 
                 IsOpen = true,
                 Pages = {},
@@ -2803,7 +2725,7 @@ do
                     Name = "\0",
                     Parent = Items["_Avatar"].Instance,
                     AnchorPoint = Vector2.new(0.5, 0.5),
-                    Image = LocalAvatar(LocalPlayer.UserId),
+                    Image = LocalAsset("Logo"),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0.5, 0, 0.5, 0),
                     Size = UDim2.new(1, -6, 1, -6),
@@ -2898,7 +2820,7 @@ do
                     Parent = Items["Search"].Instance,
                     ImageColor3 = Library.Theme["Dark Text"],
                     AnchorPoint = Vector2.new(0, 0.5),
-                    Image = LocalAsset("rbxassetid://115682280990954"),
+                    Image = LocalAsset("Search"),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 12, 0.5, 0),
                     Size = UDim2.new(0, 16, 0, 16),
@@ -2948,7 +2870,7 @@ do
                     Name = "\0",
                     Parent = Items["SettingsButton"].Instance,
                     AnchorPoint = Vector2.new(0.5, 0.5),
-                    Image = LocalAsset("rbxassetid://77336523487505"),
+                    Image = LocalAsset("Settings"),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0.5, 0, 0.5, 0),
                     Size = UDim2.new(0, 20, 0, 20),
@@ -3227,13 +3149,13 @@ do
                     BorderSizePixel = 0,
                     CanvasSize = UDim2.new(0, 0, 0, 0),
                     ScrollBarImageColor3 = Library.Theme["Dark Icon"],
-                    MidImage = LocalAsset("rbxassetid://81680855285439"),
+                    MidImage = LocalAsset("Scrollbar"),
                     ScrollBarThickness = 2,
                     Size = UDim2.new(1, -20, 1, -60),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 10, 0, 50),
-                    BottomImage = LocalAsset("rbxassetid://81680855285439"),
-                    TopImage = LocalAsset("rbxassetid://81680855285439")
+                    BottomImage = LocalAsset("Scrollbar"),
+                    TopImage = LocalAsset("Scrollbar")
                 }):AddToTheme({ ScrollBarImageColor3 = 'Dark Icon' })
 
                 SettingsItems["Pages"] = Library:Create("Frame", {
@@ -3292,8 +3214,10 @@ do
 
                         Library.OpenFrames[Settings] = Settings
                     else
-                        SettingsItems["SettingsWindow"]:Tween({ Position = UDim2.new(0, SettingButton.AbsolutePosition.X,
-                            0, SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y - 10 + GuiInset) })
+                        SettingsItems["SettingsWindow"]:Tween({
+                            Position = UDim2.new(0, SettingButton.AbsolutePosition.X,
+                                0, SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y - 10 + GuiInset)
+                        })
                         SettingsItems["SettingsWindow"]:FadeDescendants(false, function()
                             SettingWindow.Parent = Library.UnusedHolder.Instance
                             Debounce = false
@@ -3366,15 +3290,15 @@ do
                         BorderSizePixel = 0,
                         CanvasSize = UDim2.new(0, 0, 0, 0),
                         ScrollBarImageColor3 = Library.Theme["Dark Icon"],
-                        MidImage = LocalAsset("rbxassetid://81680855285439"),
+                        MidImage = LocalAsset("Scrollbar"),
                         Visible = false,
                         ClipsDescendants = true,
                         ScrollBarThickness = 2,
                         Size = UDim2.new(1, 0, 1, 0),
                         BackgroundTransparency = 1,
                         AutomaticCanvasSize = Enum.AutomaticSize.Y,
-                        BottomImage = LocalAsset("rbxassetid://81680855285439"),
-                        TopImage = LocalAsset("rbxassetid://81680855285439")
+                        BottomImage = LocalAsset("Scrollbar"),
+                        TopImage = LocalAsset("Scrollbar")
                     }):AddToTheme({ ScrollBarImageColor3 = 'Dark Icon' })
 
                     Library:Create("UIPadding", {
@@ -3620,7 +3544,7 @@ do
             Params = Params or {}
 
             local Page = {
-                Icon = LocalAsset(Params.Icon or Params.icon or "rbxassetid://129245697782918"),
+                Icon = LocalAsset(Params.Icon or Params.icon or "PageIcon"),
 
                 Window = Self,
                 ColumnsData = {},
@@ -4251,7 +4175,7 @@ do
                         Name = "\0",
                         Parent = Items["SubElements"].Instance,
                         AutoButtonColor = false,
-                        Image = LocalAsset("rbxassetid://128889160605702"),
+                        Image = LocalAsset("SettingsButton"),
                         BackgroundTransparency = 1,
                         Size = UDim2.new(0, 20, 0, 20),
                         BorderSizePixel = 0
@@ -4286,13 +4210,13 @@ do
                         BorderSizePixel = 0,
                         CanvasSize = UDim2.new(0, 0, 0, 0),
                         ScrollBarImageColor3 = Library.Theme["Dark Icon"],
-                        MidImage = LocalAsset("rbxassetid://81680855285439"),
+                        MidImage = LocalAsset("Scrollbar"),
                         ScrollBarThickness = 2,
                         Size = UDim2.new(1, -20, 1, -20),
                         BackgroundTransparency = 1,
                         Position = UDim2.new(0, 10, 0, 10),
-                        BottomImage = LocalAsset("rbxassetid://81680855285439"),
-                        TopImage = LocalAsset("rbxassetid://81680855285439")
+                        BottomImage = LocalAsset("Scrollbar"),
+                        TopImage = LocalAsset("Scrollbar")
                     }):AddToTheme({ ScrollBarImageColor3 = 'Dark Icon' })
 
                     Library:Create("UIListLayout", {
@@ -4334,9 +4258,11 @@ do
                         SettingWindow.Visible = true
 
                         RenderStepped = RunService.RenderStepped:Connect(function()
-                            SettingsItems["SettingsWindow"]:Tween({ Position = UDim2.new(0,
-                                SettingButton.AbsolutePosition.X, 0,
-                                SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y + 10 + GuiInset) })
+                            SettingsItems["SettingsWindow"]:Tween({
+                                Position = UDim2.new(0,
+                                    SettingButton.AbsolutePosition.X, 0,
+                                    SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y + 10 + GuiInset)
+                            })
                         end)
 
                         SettingsItems["SettingsWindow"]:FadeDescendants(true, function()
@@ -4345,8 +4271,10 @@ do
 
                         Library.OpenFrames[Settings] = Settings
                     else
-                        SettingsItems["SettingsWindow"]:Tween({ Position = UDim2.new(0, SettingButton.AbsolutePosition.X,
-                            0, SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y - 10 + GuiInset) })
+                        SettingsItems["SettingsWindow"]:Tween({
+                            Position = UDim2.new(0, SettingButton.AbsolutePosition.X,
+                                0, SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y - 10 + GuiInset)
+                        })
                         SettingsItems["SettingsWindow"]:FadeDescendants(false, function()
                             SettingWindow.Parent = Library.UnusedHolder.Instance
                             Debounce = false
@@ -4679,7 +4607,7 @@ do
                 Slider.Value = Library:Round(math.clamp(Value, Slider.Min, Slider.Max), Slider.Decimals)
 
                 Items["Accent"]:Tween(
-                { Size = UDim2.new((Slider.Value - Slider.Min) / (Slider.Max - Slider.Min), 0, 1, 0) },
+                    { Size = UDim2.new((Slider.Value - Slider.Min) / (Slider.Max - Slider.Min), 0, 1, 0) },
                     TweenInfo.new(Library.Animation.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
                 Items["Value"].Instance.Text = string.format("%s%s", Slider.Value, Slider.Suffix)
 
@@ -4693,7 +4621,7 @@ do
 
             function Slider:GetSize(Input)
                 local SizeX = (Input.Position.X - Items["RealSlider"].Instance.AbsolutePosition.X) /
-                Items["RealSlider"].Instance.AbsoluteSize.X
+                    Items["RealSlider"].Instance.AbsoluteSize.X
                 local Value = ((Slider.Max - Slider.Min) * SizeX) + Slider.Min
 
                 return Value
@@ -5164,7 +5092,7 @@ do
                     Name = "\0",
                     Parent = Items["RealDropdown"].Instance,
                     AnchorPoint = Vector2.new(1, 0.5),
-                    Image = LocalAsset("rbxassetid://127296511745226"),
+                    Image = LocalAsset("DropdownArrow"),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(1, -6, 0.5, 0),
                     Size = UDim2.new(0, 14, 0, 14),
@@ -5301,7 +5229,7 @@ do
                     Name = "\0",
                     Parent = OptionButton.Instance,
                     AnchorPoint = Vector2.new(1, 0.5),
-                    Image = LocalAsset("rbxassetid://114461119629011"),
+                    Image = LocalAsset("Checkbox"),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(-1, 0, 0.5, 0),
                     Size = UDim2.new(0, 14, 0, 14),
@@ -5433,8 +5361,10 @@ do
                     OptionHolder.Size = UDim2.new(0, RealDropdown.AbsoluteSize.X, 0, Dropdown.MaxSize)
 
                     OptionHolder.Parent = Library.Holder.Instance
-                    Items["OptionHolder"]:Tween({ Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,
-                        RealDropdown.AbsolutePosition.Y + RealDropdown.AbsoluteSize.Y + 10 + GuiInset) })
+                    Items["OptionHolder"]:Tween({
+                        Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,
+                            RealDropdown.AbsolutePosition.Y + RealDropdown.AbsoluteSize.Y + 10 + GuiInset)
+                    })
 
                     Items["OptionHolder"]:FadeDescendants(true, function()
                         Debounce = false
@@ -5449,8 +5379,10 @@ do
                     Library.OpenFrames[Dropdown] = Dropdown
                 else
                     Items["Icon_"]:Tween({ Rotation = 0 })
-                    Items["OptionHolder"]:Tween({ Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,
-                        RealDropdown.AbsolutePosition.Y + RealDropdown.AbsoluteSize.Y - 10 + GuiInset) })
+                    Items["OptionHolder"]:Tween({
+                        Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,
+                            RealDropdown.AbsolutePosition.Y + RealDropdown.AbsoluteSize.Y - 10 + GuiInset)
+                    })
                     Items["OptionHolder"]:FadeDescendants(false, function()
                         OptionHolder.Parent = Library.UnusedHolder.Instance
                         Debounce = false
