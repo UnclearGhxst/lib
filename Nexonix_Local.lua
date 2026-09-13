@@ -82,6 +82,23 @@ local GitHubAssets = {
     SettingsButton = "https://raw.githubusercontent.com/UnclearGhxst/lib/main/Assets/settings_boutton.png"
 }
 
+-- Compatibility for old calls/configs that still provide Roblox asset IDs.
+-- They are translated locally to the matching GitHub asset before any request.
+local LegacyAssetIds = {
+    ["77492218953155"]  = "Colorpicker",
+    ["123677974615593"] = "Settings",
+    ["113351170187860"] = "Keybind",
+    ["77749228793011"]  = "Logo",
+    ["114461119629011"] = "Checkbox",
+    ["115682280990954"] = "Search",
+    ["77336523487505"]  = "Settings",
+    ["81680855285439"]  = "Scrollbar",
+    ["129245697782918"] = "PageIcon",
+    ["128889160605702"] = "SettingsButton",
+    ["127296511745226"] = "DropdownArrow",
+    ["18274452449"]     = "Checkboard"
+}
+
 local function _assetSafeName(Name)
     return tostring(Name):gsub("[^%w%._%-]", "_")
 end
@@ -119,16 +136,26 @@ end
 local function LocalAsset(NameOrPath, Name)
     if NameOrPath == nil or NameOrPath == "" then return "" end
     local Source = tostring(NameOrPath)
+
+    -- Redirect legacy Roblox asset IDs to the user's GitHub-hosted PNGs.
+    local LegacyId = Source:match("^rbxassetid://(%d+)$")
+        or Source:match("^[%?&]id=(%d+)$")
+    local LegacyName = LegacyId and LegacyAssetIds[LegacyId]
+
+    if LegacyName then
+        Source = LegacyName
+    end
+
     local GitHubUrl = GitHubAssets[Source]
     local FileName = _assetSafeName(Name or Source)
 
     if GitHubUrl then
+        local AssetKey = NameOrPath
         Source = GitHubUrl
-        FileName = _assetSafeName(Name or FileName)
-    elseif Source:find("^rbxassetid://") or
-        Source:find("^https?://.*roblox%%.com") or
-        Source:find("^https?://assetdelivery%%.roblox%%.com") then
-        warn("[Nexonix] Roblox asset rejected: " .. Source)
+        FileName = _assetSafeName(Name or AssetKey)
+    elseif Source:find("^https?://.*roblox%.com") or
+        Source:find("^https?://assetdelivery%.roblox%.com") then
+        warn("[Nexonix] Roblox URL rejected: " .. Source)
         return ""
     elseif not Source:find("^https?://") then
         if isfile(Source) then return getcustomasset(Source) end
@@ -455,8 +482,8 @@ do
     Library.Tween = function(Self, Properties, Info, IsRawItem)
         local Object = Self.Instance or IsRawItem
         Info = Info or
-            TweenInfo.new(Library.Animation.Time, Enum.EasingStyle[Library.Animation.Style],
-                Enum.EasingDirection[Library.Animation.Direction])
+        TweenInfo.new(Library.Animation.Time, Enum.EasingStyle[Library.Animation.Style],
+            Enum.EasingDirection[Library.Animation.Direction])
 
         if not Object then
             return
@@ -1291,10 +1318,8 @@ do
 
                     ColorpickerWindow.Parent = Library.Holder.Instance
                     ColorpickerWindow.Visible = true
-                    Items["ColorpickerWindow"]:Tween({
-                        Position = UDim2.new(0, ColorpickerButton.AbsolutePosition.X, 0,
-                            ColorpickerButton.AbsolutePosition.Y + ColorpickerButton.AbsoluteSize.Y + 10 + GuiInset)
-                    })
+                    Items["ColorpickerWindow"]:Tween({ Position = UDim2.new(0, ColorpickerButton.AbsolutePosition.X, 0,
+                        ColorpickerButton.AbsolutePosition.Y + ColorpickerButton.AbsoluteSize.Y + 10 + GuiInset) })
 
                     Items["ColorpickerWindow"]:FadeDescendants(true, function()
                         Debounce = false
@@ -1308,10 +1333,8 @@ do
 
                     Library.OpenFrames[Colorpicker] = Colorpicker
                 else
-                    Items["ColorpickerWindow"]:Tween({
-                        Position = UDim2.new(0, ColorpickerButton.AbsolutePosition.X, 0,
-                            ColorpickerButton.AbsolutePosition.Y + ColorpickerButton.AbsoluteSize.Y - 10 + GuiInset)
-                    })
+                    Items["ColorpickerWindow"]:Tween({ Position = UDim2.new(0, ColorpickerButton.AbsolutePosition.X, 0,
+                        ColorpickerButton.AbsolutePosition.Y + ColorpickerButton.AbsoluteSize.Y - 10 + GuiInset) })
                     Items["ColorpickerWindow"]:FadeDescendants(false, function()
                         ColorpickerWindow.Parent = Library.UnusedHolder.Instance
                         Debounce = false
@@ -1347,23 +1370,23 @@ do
                 end
 
                 local ValueX = math.clamp(
-                    1 -
-                    (Input.Position.X - Items["Palette"].Instance.AbsolutePosition.X) /
-                    Items["Palette"].Instance.AbsoluteSize.X, 0, 1)
+                1 -
+                (Input.Position.X - Items["Palette"].Instance.AbsolutePosition.X) /
+                Items["Palette"].Instance.AbsoluteSize.X, 0, 1)
                 local ValueY = math.clamp(
-                    1 -
-                    (Input.Position.Y - Items["Palette"].Instance.AbsolutePosition.Y) /
-                    Items["Palette"].Instance.AbsoluteSize.Y, 0, 1)
+                1 -
+                (Input.Position.Y - Items["Palette"].Instance.AbsolutePosition.Y) /
+                Items["Palette"].Instance.AbsoluteSize.Y, 0, 1)
 
                 Colorpicker.Saturation = ValueX
                 Colorpicker.Value = ValueY
 
                 local SlideX = math.clamp(
-                    (Input.Position.X - Items["Palette"].Instance.AbsolutePosition.X) /
-                    Items["Palette"].Instance.AbsoluteSize.X, 0, 0.92)
+                (Input.Position.X - Items["Palette"].Instance.AbsolutePosition.X) /
+                Items["Palette"].Instance.AbsoluteSize.X, 0, 0.92)
                 local SlideY = math.clamp(
-                    (Input.Position.Y - Items["Palette"].Instance.AbsolutePosition.Y) /
-                    Items["Palette"].Instance.AbsoluteSize.Y, 0, 0.92)
+                (Input.Position.Y - Items["Palette"].Instance.AbsolutePosition.Y) /
+                Items["Palette"].Instance.AbsoluteSize.Y, 0, 0.92)
 
                 Items["PaletteDragger"]:Tween({ Position = UDim2.new(SlideX, 0, SlideY, 0) },
                     TweenInfo.new(Library.Animation.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
@@ -1379,15 +1402,13 @@ do
                 end
 
                 local ValueY = math.clamp(
-                    (Input.Position.Y - Items["Hue"].Instance.AbsolutePosition.Y) / Items["Hue"].Instance.AbsoluteSize.Y,
-                    0,
+                (Input.Position.Y - Items["Hue"].Instance.AbsolutePosition.Y) / Items["Hue"].Instance.AbsoluteSize.Y, 0,
                     1)
 
                 Colorpicker.Hue = ValueY
 
                 local SlideY = math.clamp(
-                    (Input.Position.Y - Items["Hue"].Instance.AbsolutePosition.Y) / Items["Hue"].Instance.AbsoluteSize.Y,
-                    0,
+                (Input.Position.Y - Items["Hue"].Instance.AbsolutePosition.Y) / Items["Hue"].Instance.AbsoluteSize.Y, 0,
                     0.92)
 
                 Items["HueDragger"]:Tween({ Position = UDim2.new(0, 0, SlideY, 0) },
@@ -1404,15 +1425,13 @@ do
                 end
 
                 local ValueX = math.clamp(
-                    (Input.Position.X - Items["Alpha"].Instance.AbsolutePosition.X) /
-                    Items["Alpha"].Instance.AbsoluteSize.X,
+                (Input.Position.X - Items["Alpha"].Instance.AbsolutePosition.X) / Items["Alpha"].Instance.AbsoluteSize.X,
                     0, 1)
 
                 Colorpicker.Alpha = ValueX
 
                 local SlideX = math.clamp(
-                    (Input.Position.X - Items["Alpha"].Instance.AbsolutePosition.X) /
-                    Items["Alpha"].Instance.AbsoluteSize.X,
+                (Input.Position.X - Items["Alpha"].Instance.AbsolutePosition.X) / Items["Alpha"].Instance.AbsoluteSize.X,
                     0, 0.92)
 
                 Items["AlphaDragger"]:Tween({ Position = UDim2.new(SlideX, 0, 0, 0) },
@@ -1771,10 +1790,8 @@ do
                         KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y + GuiInset)
 
                     KeybindWindow.Parent = Library.Holder.Instance
-                    Items["KeybindWindow"]:Tween({
-                        Position = UDim2.new(0, KeyButton.AbsolutePosition.X, 0,
-                            KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y + 10 + GuiInset)
-                    })
+                    Items["KeybindWindow"]:Tween({ Position = UDim2.new(0, KeyButton.AbsolutePosition.X, 0,
+                        KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y + 10 + GuiInset) })
 
                     Items["KeybindWindow"]:FadeDescendants(true, function()
                         Debounce = false
@@ -1788,10 +1805,8 @@ do
 
                     Library.OpenFrames[Keybind] = Keybind
                 else
-                    Items["KeybindWindow"]:Tween({
-                        Position = UDim2.new(0, KeyButton.AbsolutePosition.X, 0,
-                            KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y - 10 + GuiInset)
-                    })
+                    Items["KeybindWindow"]:Tween({ Position = UDim2.new(0, KeyButton.AbsolutePosition.X, 0,
+                        KeyButton.AbsolutePosition.Y + KeyButton.AbsoluteSize.Y - 10 + GuiInset) })
                     Items["KeybindWindow"]:FadeDescendants(false, function()
                         Items["KeybindWindow"].Instance.Parent = Library.UnusedHolder.Instance
                         Debounce = false
@@ -1899,7 +1914,7 @@ do
 
                     local KeyString = Keys[Keybind.Key] or string.gsub(Key, "Enum.", "") or "None"
                     local TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "") or
-                        "None"
+                    "None"
 
                     Keybind.Value = TextToDisplay
                     Items["Text"].Instance.Text = TextToDisplay
@@ -1927,7 +1942,7 @@ do
 
                     local KeyString = Keys[Keybind.Key] or string.gsub(tostring(RealKey), "Enum.", "") or RealKey
                     local TextToDisplay = KeyString and
-                        string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None"
+                    string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None"
 
                     TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "")
 
@@ -3214,10 +3229,8 @@ do
 
                         Library.OpenFrames[Settings] = Settings
                     else
-                        SettingsItems["SettingsWindow"]:Tween({
-                            Position = UDim2.new(0, SettingButton.AbsolutePosition.X,
-                                0, SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y - 10 + GuiInset)
-                        })
+                        SettingsItems["SettingsWindow"]:Tween({ Position = UDim2.new(0, SettingButton.AbsolutePosition.X,
+                            0, SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y - 10 + GuiInset) })
                         SettingsItems["SettingsWindow"]:FadeDescendants(false, function()
                             SettingWindow.Parent = Library.UnusedHolder.Instance
                             Debounce = false
@@ -4258,11 +4271,9 @@ do
                         SettingWindow.Visible = true
 
                         RenderStepped = RunService.RenderStepped:Connect(function()
-                            SettingsItems["SettingsWindow"]:Tween({
-                                Position = UDim2.new(0,
-                                    SettingButton.AbsolutePosition.X, 0,
-                                    SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y + 10 + GuiInset)
-                            })
+                            SettingsItems["SettingsWindow"]:Tween({ Position = UDim2.new(0,
+                                SettingButton.AbsolutePosition.X, 0,
+                                SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y + 10 + GuiInset) })
                         end)
 
                         SettingsItems["SettingsWindow"]:FadeDescendants(true, function()
@@ -4271,10 +4282,8 @@ do
 
                         Library.OpenFrames[Settings] = Settings
                     else
-                        SettingsItems["SettingsWindow"]:Tween({
-                            Position = UDim2.new(0, SettingButton.AbsolutePosition.X,
-                                0, SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y - 10 + GuiInset)
-                        })
+                        SettingsItems["SettingsWindow"]:Tween({ Position = UDim2.new(0, SettingButton.AbsolutePosition.X,
+                            0, SettingButton.AbsolutePosition.Y + SettingButton.AbsoluteSize.Y - 10 + GuiInset) })
                         SettingsItems["SettingsWindow"]:FadeDescendants(false, function()
                             SettingWindow.Parent = Library.UnusedHolder.Instance
                             Debounce = false
@@ -4607,7 +4616,7 @@ do
                 Slider.Value = Library:Round(math.clamp(Value, Slider.Min, Slider.Max), Slider.Decimals)
 
                 Items["Accent"]:Tween(
-                    { Size = UDim2.new((Slider.Value - Slider.Min) / (Slider.Max - Slider.Min), 0, 1, 0) },
+                { Size = UDim2.new((Slider.Value - Slider.Min) / (Slider.Max - Slider.Min), 0, 1, 0) },
                     TweenInfo.new(Library.Animation.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
                 Items["Value"].Instance.Text = string.format("%s%s", Slider.Value, Slider.Suffix)
 
@@ -4621,7 +4630,7 @@ do
 
             function Slider:GetSize(Input)
                 local SizeX = (Input.Position.X - Items["RealSlider"].Instance.AbsolutePosition.X) /
-                    Items["RealSlider"].Instance.AbsoluteSize.X
+                Items["RealSlider"].Instance.AbsoluteSize.X
                 local Value = ((Slider.Max - Slider.Min) * SizeX) + Slider.Min
 
                 return Value
@@ -5361,10 +5370,8 @@ do
                     OptionHolder.Size = UDim2.new(0, RealDropdown.AbsoluteSize.X, 0, Dropdown.MaxSize)
 
                     OptionHolder.Parent = Library.Holder.Instance
-                    Items["OptionHolder"]:Tween({
-                        Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,
-                            RealDropdown.AbsolutePosition.Y + RealDropdown.AbsoluteSize.Y + 10 + GuiInset)
-                    })
+                    Items["OptionHolder"]:Tween({ Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,
+                        RealDropdown.AbsolutePosition.Y + RealDropdown.AbsoluteSize.Y + 10 + GuiInset) })
 
                     Items["OptionHolder"]:FadeDescendants(true, function()
                         Debounce = false
@@ -5379,10 +5386,8 @@ do
                     Library.OpenFrames[Dropdown] = Dropdown
                 else
                     Items["Icon_"]:Tween({ Rotation = 0 })
-                    Items["OptionHolder"]:Tween({
-                        Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,
-                            RealDropdown.AbsolutePosition.Y + RealDropdown.AbsoluteSize.Y - 10 + GuiInset)
-                    })
+                    Items["OptionHolder"]:Tween({ Position = UDim2.new(0, RealDropdown.AbsolutePosition.X, 0,
+                        RealDropdown.AbsolutePosition.Y + RealDropdown.AbsoluteSize.Y - 10 + GuiInset) })
                     Items["OptionHolder"]:FadeDescendants(false, function()
                         OptionHolder.Parent = Library.UnusedHolder.Instance
                         Debounce = false
