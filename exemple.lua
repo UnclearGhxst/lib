@@ -1,4 +1,5 @@
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/UnclearGhxst/lib/refs/heads/main/Nexonix_Local.lua"))()
+local Library = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/UnclearGhxst/lib/refs/heads/main/Nexonix_Local.lua"))()
 
 local KeybindList = Library:KeybindList({ Name = "Keybind List" })
 
@@ -17,7 +18,7 @@ do
         local SkinManager = TabOne:Section({ Name = "Skin Manager", Side = 2 })
 
         -- Toggle: All Buttons
-        local AllButtons = Main:Toggle({
+        local AllButtons  = Main:Toggle({
             Name = "All Buttons",
             Flag = "AllButtons",
             Default = false,
@@ -60,7 +61,7 @@ do
                     return i
                 end
             end
-            for _, letter in {"A", "B", "C", "D"} do
+            for _, letter in { "A", "B", "C", "D" } do
                 local name = Library.GetSlotName and Library.GetSlotName(letter) or ("Slot " .. letter)
                 if val:match("^" .. name) or val:match("^Slot " .. letter) or val == letter then
                     return letter
@@ -133,9 +134,11 @@ do
                         if Library.GetSkinsList then
                             Library:GetSkinsList(SkinSlotDropdown)
                         end
-                        Library:Notification("Saved skin to slot " .. tostring(slot) .. "!", 3, Color3.fromRGB(0, 255, 120))
+                        Library:Notification("Saved skin to slot " .. tostring(slot) .. "!", 3,
+                            Color3.fromRGB(0, 255, 120))
                     else
-                        Library:Notification("Failed to save skin: " .. tostring(err or "error"), 3, Color3.fromRGB(255, 100, 100))
+                        Library:Notification("Failed to save skin: " .. tostring(err or "error"), 3,
+                            Color3.fromRGB(255, 100, 100))
                     end
                 else
                     Library:Notification("Saved skin to Slot " .. tostring(slot), 3, Color3.fromRGB(0, 255, 120))
@@ -152,10 +155,12 @@ do
                 if Library.ApplySkinFromSlot then
                     local ok, err = Library.ApplySkinFromSlot(slot)
                     if ok then
-                        local label = slot == 0 and (Library.DEFAULT_SKIN_NAME or "Default") or (Library.GetSlotName and Library.GetSlotName(slot) or tostring(slot))
+                        local label = slot == 0 and (Library.DEFAULT_SKIN_NAME or "Default") or
+                            (Library.GetSlotName and Library.GetSlotName(slot) or tostring(slot))
                         Library:Notification("Loaded skin: " .. tostring(label) .. "!", 3, Color3.fromRGB(0, 180, 255))
                     else
-                        Library:Notification("Failed to load skin: " .. tostring(err or "Empty slot"), 3, Color3.fromRGB(255, 100, 100))
+                        Library:Notification("Failed to load skin: " .. tostring(err or "Empty slot"), 3,
+                            Color3.fromRGB(255, 100, 100))
                     end
                 else
                     Library:Notification("Loaded skin from Slot " .. tostring(slot), 3, Color3.fromRGB(0, 180, 255))
@@ -178,7 +183,8 @@ do
                     if Library.GetSkinsList then
                         Library:GetSkinsList(SkinSlotDropdown)
                     end
-                    Library:Notification("Deleted skin from slot " .. tostring(slot) .. ".", 3, Color3.fromRGB(255, 74, 116))
+                    Library:Notification("Deleted skin from slot " .. tostring(slot) .. ".", 3,
+                        Color3.fromRGB(255, 74, 116))
                 else
                     Library:Notification("Deleted skin from Slot " .. tostring(slot), 3, Color3.fromRGB(255, 74, 116))
                 end
@@ -193,7 +199,7 @@ do
         local WeaponSection  = TabTwo:Section({ Name = "Weapon", Side = 1 })
         local VisualsSection = TabTwo:Section({ Name = "Visuals", Side = 2 })
 
-        local WeaponToggle = WeaponSection:Toggle({
+        local WeaponToggle   = WeaponSection:Toggle({
             Name = "Weapon Toggle",
             Flag = "WeaponToggle",
             Default = false,
@@ -308,4 +314,4 @@ do
     end
 end
 
-Library:Notification("Nexonix Library Loaded!", 5, Color3.fromRGB(255, 74, 116))
+Library:Notification("Nexonix Library Loaded!", 5, Color3.fromRGB(54, 60, 143))

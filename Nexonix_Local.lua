@@ -3842,7 +3842,8 @@ do
                     return value
                 end
 
-                local SkinsDropdown = ConfigsTab:Dropdown({
+                local SkinsDropdown
+                SkinsDropdown = ConfigsTab:Dropdown({
                     Name = "Skin Slot",
                     Flag = "SettingsSkinSlot",
                     Items = buildSlotNamesList(),
@@ -3850,6 +3851,14 @@ do
                     Multi = false,
                     Callback = function(Value)
                         selectedSlot = parseSelectedSlot(Value)
+                        -- Update dropdown label to the selected skin name
+                        local displayName
+                        if selectedSlot == 0 then
+                            displayName = DEFAULT_SKIN_NAME
+                        else
+                            displayName = getSlotName(selectedSlot)
+                        end
+                        SkinsDropdown:SetText("Skin Slot (" .. tostring(displayName) .. ")")
                     end
                 })
 
@@ -3879,6 +3888,8 @@ do
                         if name == "" then name = "Slot " .. tostring(selectedSlot) end
                         setSlotName(selectedSlot, name)
                         Library:GetSkinsList(SkinsDropdown)
+                        -- Update dropdown label to the new name
+                        SkinsDropdown:SetText("Skin Slot (" .. name .. ")")
                         Library:Notification("Renamed to \"" .. name .. "\"", 3, Color3.fromRGB(0, 255, 120))
                     end
                 })
