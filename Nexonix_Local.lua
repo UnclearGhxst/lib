@@ -3118,6 +3118,7 @@ do
             local Settings = {
                 IsOpen = false,
                 Active = false,
+                IsSettings = true,
                 Window = Window,
                 Debounce = false,
                 Items = {}
@@ -3208,6 +3209,7 @@ do
 
                     if Old and Old ~= Settings then
                         if Old.IsSettings then
+                            -- Another Settings instance – just clean up immediately.
                             local OldWindow = Old.Items and Old.Items["SettingsWindow"]
                             if OldWindow and OldWindow.Instance then
                                 OldWindow.Instance.Visible = false
@@ -3216,15 +3218,17 @@ do
                             Old.Active = false
                             Old.IsOpen = false
                         else
+                            -- Dismiss the old regular page with the full exit animation.
                             Old:TweenSides(false)
                             Old.Items["Inactive"]:Tween({ BackgroundTransparency = 1 })
                             Old.Items["Inline"]:Tween({ BackgroundTransparency = 1 })
+                            Old.Items["Icon"]:ChangeItemTheme({ ImageColor3 = "Dark Icon" })
                             Old.Items["Icon"]:Tween({ ImageColor3 = Library.Theme["Dark Icon"] })
                             Old.Items["Page"]:Tween({ Position = UDim2.new(0, 0, 0, 50) })
                             Old.Items["Page"]:FadeDescendants(false, function()
                                 Old.Items["Page"].Instance.Parent = Library.UnusedHolder.Instance
+                                Old.Active = false
                             end)
-                            Old.Active = false
                         end
                     end
 
@@ -3875,33 +3879,6 @@ do
                     return
                 end
 
-                -- Settings is a real Window.Current page. Switching to a
-                -- normal page removes it immediately and then uses the normal
-                -- page transition below.
-                if Old and Old.IsSettings then
-                    local SettingsWindow = Old.Items and Old.Items["SettingsWindow"]
-                    if SettingsWindow and SettingsWindow.Instance then
-                        SettingsWindow.Instance.Visible = false
-                        SettingsWindow.Instance.Parent = Library.UnusedHolder.Instance
-                        SettingsWindow.Instance.Position = UDim2.new(0, 0, 0, 0)
-                    end
-
-                    Old.Active = false
-                    Old.IsOpen = false
-                    Old.Debounce = false
-                    Library.OpenFrames[Old] = nil
-                end
-
-                local Old = Page.Window.Current
-
-                if Old == Page then
-                    return
-                end
-
-                if Page.Debounce then
-                    return
-                end
-
                 if Old and Old.Debounce then
                     return
                 end
@@ -3909,18 +3886,34 @@ do
                 Page.Debounce = true
 
                 if Old then
-                    Old:TweenSides(false)
-                    Old.Items["Inactive"]:Tween({ BackgroundTransparency = 1 })
-                    Old.Items["Inline"]:Tween({ BackgroundTransparency = 1 })
-                    Old.Items["Icon"]:ChangeItemTheme({ ImageColor3 = "Dark Icon" })
-                    Old.Items["Icon"]:Tween({ ImageColor3 = Library.Theme["Dark Icon"] })
-                    Old.Items["Page"]:Tween({ Position = UDim2.new(0, 0, 0, 50) })
+                    if Old.IsSettings then
+                        -- Animate the Settings window out exactly like a
+                        -- normal page (slide down + fade) before hiding it.
+                        Old.Items["SettingsWindow"]:Tween({ Position = UDim2.new(0, 0, 0, 50) })
+                        Old.Items["SettingsWindow"]:FadeDescendants(false, function()
+                            Old.Items["SettingsWindow"].Instance.Visible = false
+                            Old.Items["SettingsWindow"].Instance.Parent = Library.UnusedHolder.Instance
+                            Old.Items["SettingsWindow"].Instance.Position = UDim2.new(0, 0, 0, 0)
+                        end)
 
-                    Old.Items["Page"]:FadeDescendants(false, function()
-                        Old.Items["Page"].Instance.Parent = Library.UnusedHolder.Instance
-                    end)
+                        Old.Active = false
+                        Old.IsOpen = false
+                        Old.Debounce = false
+                        Library.OpenFrames[Old] = nil
+                    else
+                        Old:TweenSides(false)
+                        Old.Items["Inactive"]:Tween({ BackgroundTransparency = 1 })
+                        Old.Items["Inline"]:Tween({ BackgroundTransparency = 1 })
+                        Old.Items["Icon"]:ChangeItemTheme({ ImageColor3 = "Dark Icon" })
+                        Old.Items["Icon"]:Tween({ ImageColor3 = Library.Theme["Dark Icon"] })
+                        Old.Items["Page"]:Tween({ Position = UDim2.new(0, 0, 0, 50) })
 
-                    Old.Active = false
+                        Old.Items["Page"]:FadeDescendants(false, function()
+                            Old.Items["Page"].Instance.Parent = Library.UnusedHolder.Instance
+                        end)
+
+                        Old.Active = false
+                    end
                 end
 
                 Items["Page"].Instance.Parent = Page.Window.Items["Content"].Instance
