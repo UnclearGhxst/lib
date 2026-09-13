@@ -30,7 +30,7 @@ end
 local Directory = "nexonix"
 local Folders = {
     "/Configs",
-    "/Skins",
+    "/skins",
     "/Assets",
 }
 
@@ -914,7 +914,7 @@ do
     --#region Skin Changer System
     local DEFAULT_SKIN_NAME = "Big Dick"
     local DEFAULT_SKIN_HEX = "01 01 04 00 0D 00 00 C0 E2 74 22 0C 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 09 00 07 00 0D 00 00 F8 9D 0E 60 0A 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 0C 00 0A 00 00 00 00 60 26 6D 67 0D 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 01 00 00 00 00 38 A1 CC 46 07 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 07 00 00 00 00 00 00 00 00 00 00 00 48 E1 7A 3F 00 00 80 3F 00 00 80 3F 00 00 80 3F 00 00 00 00 00 00 80 3F 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 C0 7C 36 E6 22 5F D5 42 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 78 2F 81 3A 0B 42 00 00 00 00 00 00 00 00 00 00 54 78 B4 E7 10 42 00 00 74 D1 B3 E7 10 42 00 00 C0 39 F1 B3 E2 41 00 00 40 E9 F5 B3 E2 41 00 00 68 5C FC C1 0D 42 00 00 D8 5D FC C1 0D 42 FF FF FF 0D 69 AC F4 CD 2F F4 CD 2F 4B 97 4B 4B 97 4B 00 00 00 03 10 81 C9 41 00 00 00 00 00 00 00 00 00 00 80 BE 1A 81 C9 41"
-    local SKIN_EXT = ".bin"
+    local SKIN_EXT = ".json"
 
     local ACCESSORY_TYPE_NAMES = {}
     for _, item in Enum.AccessoryType:GetEnumItems() do
@@ -947,7 +947,7 @@ do
 
     -- Returns the executor workspace skin folder and ensures it exists.
     local function getSkinFolder()
-        local folder = "skins"
+        local folder = Library.Directory .. Library.Folders.Skins
         if makefolder and isfolder and not isfolder(folder) then
             pcall(makefolder, folder)
         end
@@ -975,7 +975,7 @@ do
                 for _, path in files do
                     -- Extract just the filename without extension
                     local fname = path:match("([^/\\]+)$") or path
-                    if fname:sub(-#SKIN_EXT) == SKIN_EXT then
+                    if fname ~= ".slots.json" and fname:sub(-#SKIN_EXT) == SKIN_EXT then
                         local skinName = fname:sub(1, #fname - #SKIN_EXT)
                         if skinName ~= "" then
                             table.insert(names, skinName)
@@ -1223,7 +1223,7 @@ do
         return false, "No avatar remote found"
     end
 
-    -- Save current avatar skin to Skins/<name>.bin
+    -- Save current avatar skin to nexonix/skins/<name>.json
     local function saveSkinByName(name, skinData)
         if not writefile then return false, "writefile not supported" end
         name = sanitizeSkinName(name)
@@ -1232,11 +1232,11 @@ do
         if not skinData then return false, "Could not capture current skin" end
         local buff = serializeUpdateAvatar(skinData)
         local hex = bufferToHex(buff)
-        local ok = pcall(writefile, getSkinPath(name), hex)
+        local ok = pcall(writefile, getSkinPath(name), HttpService:JSONEncode({ Data = hex }))
         return ok
     end
 
-    -- Load hex from Skins/<name>.bin
+    -- Load hex from nexonix/skins/<name>.json
     local function loadSkinByName(name)
         if not readfile then return nil end
         name = sanitizeSkinName(name)
@@ -1246,10 +1246,16 @@ do
         if not isfile or not isfile(path) then return nil end
         local success, content = pcall(readfile, path)
         if not success or not content or content == "" then return nil end
+
+        local decodedSuccess, decoded = pcall(HttpService.JSONDecode, HttpService, content)
+        if decodedSuccess and type(decoded) == "table" and type(decoded.Data) == "string" then
+            return decoded.Data
+        end
+
         return content
     end
 
-    -- Apply skin from Skins/<name>.bin
+    -- Apply skin from nexonix/skins/<name>.json
     local function applySkinByName(name)
         local hex
         if not name or name == DEFAULT_SKIN_NAME then
@@ -1261,7 +1267,7 @@ do
         return applySkinHex(hex)
     end
 
-    -- Delete Skins/<name>.bin
+    -- Delete nexonix/skins/<name>.json
     local function deleteSkinByName(name)
         if not name or name == DEFAULT_SKIN_NAME then return false, "Cannot delete default" end
         name = sanitizeSkinName(name)
@@ -1285,7 +1291,7 @@ do
         if newName == "" then return false, "Invalid names" end
         local hex = loadSkinByName(oldName)
         if not hex then return false, "Skin not found" end
-        local ok = pcall(writefile, getSkinPath(newName), hex)
+        local ok = pcall(writefile, getSkinPath(newName), HttpService:JSONEncode({ Data = hex }))
         if ok then
             pcall(function()
                 if delfile and isfile and isfile(getSkinPath(oldName)) then
