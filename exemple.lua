@@ -154,6 +154,13 @@ do
                         Library:Notification("Saved " .. tostring(savedName) .. "!", 3,
                             Color3.fromRGB(0, 255, 120))
                     else
+                        if Library.GetSkinsList then
+                            Library:GetSkinsList(SkinSlotDropdown)
+                        end
+                        local currentName = Library.GetSlotName and Library.GetSlotName(slot)
+                        if currentName and SkinSlotDropdown.Set then
+                            SkinSlotDropdown:Set(currentName)
+                        end
                         local message = err == "DUPLICATE" and "You already saved this skin."
                             or err == "LIMIT" and "You can only save 6 skins."
                             or "Failed to save skin: " .. tostring(err or "error")

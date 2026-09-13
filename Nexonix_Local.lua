@@ -6065,6 +6065,8 @@ do
 
                 if not Dropdown.Multi and Dropdown.Options[CurrentValue] then
                     Dropdown:Set(CurrentValue)
+                elseif not Dropdown.Multi and List[1] then
+                    Dropdown:Set(List[1])
                 end
             end
 
