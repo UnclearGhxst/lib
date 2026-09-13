@@ -1348,30 +1348,39 @@ do
     local function buildSlotNamesList()
         local savedNames = {}
         local emptySlots = {}
+        local savedLookup = {}
+
+        local function alphabetical(left, right)
+            local leftLower = string.lower(tostring(left))
+            local rightLower = string.lower(tostring(right))
+            if leftLower == rightLower then
+                return tostring(left) < tostring(right)
+            end
+            return leftLower < rightLower
+        end
 
         for slot = 1, MAX_SKIN_SLOTS do
             local slotName = getSlotName(slot)
             if skinExists(slotName) then
                 table.insert(savedNames, slotName)
+                savedLookup[string.lower(slotName)] = true
             else
                 table.insert(emptySlots, slotName)
             end
         end
 
         for _, skinName in listSkinNames() do
-            if not table.find(savedNames, skinName) then
+            local lookupName = string.lower(skinName)
+            if not savedLookup[lookupName] then
                 table.insert(savedNames, skinName)
+                savedLookup[lookupName] = true
             end
         end
 
-        table.sort(savedNames, function(left, right)
-            return string.lower(left) < string.lower(right)
-        end)
+        table.sort(savedNames, alphabetical)
 
         table.insert(emptySlots, DEFAULT_SKIN_NAME)
-        table.sort(emptySlots, function(left, right)
-            return string.lower(left) < string.lower(right)
-        end)
+        table.sort(emptySlots, alphabetical)
 
         local names = savedNames
         for _, slotName in emptySlots do
