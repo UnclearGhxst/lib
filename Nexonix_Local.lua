@@ -1425,6 +1425,10 @@ do
             return false, "Invalid name"
         end
 
+        if cleanName ~= oldName and skinExists(cleanName) then
+            return false, "NAME_EXISTS"
+        end
+
         for otherSlot = 1, MAX_SKIN_SLOTS do
             if tostring(otherSlot) ~= slotKey and getSlotName(otherSlot) == cleanName then
                 return false, "NAME_EXISTS"
