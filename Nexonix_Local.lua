@@ -46,7 +46,8 @@ end
 Library.Directory = "nexonix"
 Library.Folders = {
     Configs = "/Configs",
-    Assets = "/Assets",
+    Skins   = "/Skins",
+    Assets  = "/Assets",
 }
 
 -- Bad executor support (atleast by a bit)
@@ -60,6 +61,7 @@ local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
 local GuiService = game:GetService("GuiService")
 local CoreGui = cloneref(game:GetService("CoreGui"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 --#endregion
 
 
@@ -906,6 +908,398 @@ do
 
         Element:Refresh(ReturnList)
     end
+
+    --#region Skin Changer System (ported from yes.lua)
+    local DEFAULT_SKIN_NAME = "Big Dick"
+    local DEFAULT_SKIN_HEX = "01 01 04 00 0D 00 00 C0 E2 74 22 0C 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 09 00 07 00 0D 00 00 F8 9D 0E 60 0A 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 0C 00 0A 00 00 00 00 60 26 6D 67 0D 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 01 00 00 00 00 38 A1 CC 46 07 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 07 00 00 00 00 00 00 00 00 00 00 00 48 E1 7A 3F 00 00 80 3F 00 00 80 3F 00 00 80 3F 00 00 00 00 00 00 80 3F 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 C0 7C 36 E6 22 5F D5 42 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 78 2F 81 3A 0B 42 00 00 00 00 00 00 00 00 00 00 54 78 B4 E7 10 42 00 00 74 D1 B3 E7 10 42 00 00 C0 39 F1 B3 E2 41 00 00 40 E9 F5 B3 E2 41 00 00 68 5C FC C1 0D 42 00 00 D8 5D FC C1 0D 42 FF FF FF 0D 69 AC F4 CD 2F F4 CD 2F 4B 97 4B 4B 97 4B 00 00 00 03 10 81 C9 41 00 00 00 00 00 00 00 00 00 00 80 BE 1A 81 C9 41"
+    local MAX_SKIN_SLOTS = 6
+
+    local ACCESSORY_TYPE_NAMES = {}
+    for _, item in Enum.AccessoryType:GetEnumItems() do
+        ACCESSORY_TYPE_NAMES[item.Value] = item.Name
+    end
+
+    local function hexToBuffer(hex)
+        local bytes = {}
+        for byte in hex:gmatch("%x%x") do
+            table.insert(bytes, tonumber(byte, 16))
+        end
+        local buff = buffer.create(#bytes)
+        for i, byte in bytes do
+            buffer.writeu8(buff, i - 1, byte)
+        end
+        return buff
+    end
+
+    local function bufferToHex(buff)
+        if typeof(buff) ~= "buffer" then
+            error("bufferToHex expected a buffer, got " .. typeof(buff), 2)
+        end
+        local parts = {}
+        for i = 0, buffer.len(buff) - 1 do
+            local b = buffer.readu8(buff, i)
+            table.insert(parts, string.format("%02X", b))
+        end
+        return table.concat(parts, " ")
+    end
+
+    local function getSkinFolder()
+        local folder = (isfolder and isfolder("UwUHub/Skins") and "UwUHub/Skins") or (Library.Directory .. (Library.Folders.Skins or "/Skins"))
+        if makefolder and not isfolder(folder) then
+            pcall(makefolder, folder)
+        end
+        return folder
+    end
+
+    local function getSkinPath(slot)
+        return getSkinFolder() .. "/skin_" .. tostring(slot) .. ".json"
+    end
+
+    local function loadSkinSlotNames()
+        if not readfile then return {} end
+        local path = getSkinFolder() .. "/names.json"
+        if not isfile or not isfile(path) then return {} end
+        local success, content = pcall(readfile, path)
+        if not success or not content then return {} end
+        local ok, data = pcall(function() return HttpService:JSONDecode(content) end)
+        if ok and type(data) == "table" then return data end
+        return {}
+    end
+
+    local function saveSkinSlotNames(names)
+        if not writefile then return end
+        pcall(writefile, getSkinFolder() .. "/names.json", HttpService:JSONEncode(names))
+    end
+
+    local function getSlotName(slot)
+        local names = loadSkinSlotNames()
+        return names[tostring(slot)] or ("Slot " .. tostring(slot))
+    end
+
+    local function setSlotName(slot, name)
+        local names = loadSkinSlotNames()
+        names[tostring(slot)] = name
+        saveSkinSlotNames(names)
+    end
+
+    local function deleteSlotName(slot)
+        local names = loadSkinSlotNames()
+        names[tostring(slot)] = nil
+        saveSkinSlotNames(names)
+    end
+
+    local function slotHasSkin(slot)
+        if not isfile then return false end
+        return isfile(getSkinPath(slot))
+    end
+
+    local function captureCurrentSkin()
+        local player = Players.LocalPlayer
+        local character = player and player.Character
+        if not character then return nil end
+
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return nil end
+
+        local desc = humanoid:GetAppliedDescription()
+
+        local accessories = {}
+        for _, acc in desc:GetAccessories(true) do
+            table.insert(accessories, {
+                AssetId = acc.AssetId,
+                AccessoryType = {
+                    EnumType = "AccessoryType",
+                    Value = acc.AccessoryType.Value,
+                },
+                Order = acc.Order ~= 0 and acc.Order or nil,
+                Puffiness = acc.Puffiness ~= 1 and acc.Puffiness or nil,
+                IsLayered = acc.IsLayered or nil,
+            })
+        end
+
+        local emotes = {}
+        for _, emoteInfo in desc:GetEquippedEmotes() do
+            emotes[emoteInfo.Name] = { 0 }
+        end
+
+        local equippedEmotes = {}
+        for _, emoteInfo in desc:GetEquippedEmotes() do
+            table.insert(equippedEmotes, {
+                Name = emoteInfo.Name,
+                Slot = emoteInfo.Slot,
+            })
+        end
+
+        local bodyColors = character:FindFirstChildOfClass("BodyColors")
+        local function getColor(part)
+            if bodyColors then
+                if part == "Head" then return bodyColors.HeadColor3 end
+                if part == "Torso" then return bodyColors.TorsoColor3 end
+                if part == "LeftArm" then return bodyColors.LeftArmColor3 end
+                if part == "RightArm" then return bodyColors.RightArmColor3 end
+                if part == "LeftLeg" then return bodyColors.LeftLegColor3 end
+                if part == "RightLeg" then return bodyColors.RightLegColor3 end
+            end
+            return Color3.new(1, 1, 1)
+        end
+
+        return {
+            Accessories = accessories,
+            Emotes = emotes,
+            EquippedEmotes = equippedEmotes,
+            Face = desc.Face,
+            Scale = {
+                BodyType = desc.BodyTypeScale,
+                Depth = desc.DepthScale,
+                Head = desc.HeadScale,
+                Height = desc.HeightScale,
+                Proportion = desc.ProportionScale,
+                Width = desc.WidthScale,
+            },
+            Animations = {
+                Walk = desc.WalkAnimation,
+                Run = desc.RunAnimation,
+                Fall = desc.FallAnimation,
+                Climb = desc.ClimbAnimation,
+                Swim = desc.SwimAnimation,
+                Idle = desc.IdleAnimation,
+                Mood = desc.MoodAnimation,
+                Jump = desc.JumpAnimation,
+            },
+            BodyParts = {
+                Head = desc.Head,
+                Torso = desc.Torso,
+                LeftArm = desc.LeftArm,
+                RightArm = desc.RightArm,
+                LeftLeg = desc.LeftLeg,
+                RightLeg = desc.RightLeg,
+            },
+            BodyPartColors = {
+                Head = getColor("Head"),
+                Torso = getColor("Torso"),
+                LeftArm = getColor("LeftArm"),
+                RightArm = getColor("RightArm"),
+                LeftLeg = getColor("LeftLeg"),
+                RightLeg = getColor("RightLeg"),
+            },
+            Clothing = {
+                Shirt = desc.Shirt,
+                TShirt = desc.GraphicTShirt,
+                Pants = desc.Pants,
+            },
+        }
+    end
+
+    local function serializeUpdateAvatar(data)
+        local buff = buffer.create(2048)
+        local used = 0
+        local apos = 0
+
+        local function alloc(len)
+            if used + len > buffer.len(buff) then
+                local newSize = buffer.len(buff)
+                while used + len > newSize do newSize = newSize * 2 end
+                local newBuff = buffer.create(newSize)
+                buffer.copy(newBuff, 0, buff, 0, used)
+                buff = newBuff
+            end
+            apos = used
+            used = used + len
+            return apos
+        end
+
+        alloc(1); buffer.writeu8(buff, apos, 1)
+
+        local bool6 = 0
+        local bool6Pos = alloc(1)
+        local accLen = #data.Accessories
+        alloc(2); buffer.writeu16(buff, apos, accLen)
+        for _, acc in data.Accessories do
+            local bool5 = 0
+            local bool5Pos = alloc(1)
+
+            alloc(8); buffer.writef64(buff, apos, acc.AssetId)
+
+            local enumStr = (acc.AccessoryType and acc.AccessoryType.EnumType) or "AccessoryType"
+            alloc(2); buffer.writeu16(buff, apos, #enumStr)
+            alloc(#enumStr); buffer.writestring(buff, apos, enumStr, #enumStr)
+            alloc(2); buffer.writeu16(buff, apos, acc.AccessoryType and acc.AccessoryType.Value or 0)
+
+            if acc.Order ~= nil then
+                bool5 = bit32.bor(bool5, 0b1)
+                alloc(2); buffer.writeu16(buff, apos, acc.Order)
+            end
+            if acc.Puffiness ~= nil then
+                bool5 = bit32.bor(bool5, 0b10)
+                alloc(4); buffer.writef32(buff, apos, acc.Puffiness)
+            end
+            if acc.IsLayered ~= nil then
+                bool5 = bit32.bor(bool5, 0b100)
+                if acc.IsLayered then bool5 = bit32.bor(bool5, 0b1000) end
+            end
+
+            buffer.writeu8(buff, bool5Pos, bool5)
+        end
+
+        local emoteCount = 0
+        local lenPos
+        for k, v in data.Emotes do
+            if emoteCount == 0 then lenPos = alloc(2) end
+            emoteCount = emoteCount + 1
+            alloc(2); buffer.writeu16(buff, apos, #k)
+            alloc(#k); buffer.writestring(buff, apos, k, #k)
+            alloc(2); buffer.writeu16(buff, apos, #v)
+            for _, id in v do
+                alloc(8); buffer.writef64(buff, apos, id)
+            end
+        end
+        if lenPos then
+            buffer.writeu16(buff, lenPos, emoteCount - 1)
+        else
+            bool6 = bit32.bor(bool6, 0b1)
+        end
+
+        alloc(2); buffer.writeu16(buff, apos, #data.EquippedEmotes)
+        for _, emote in data.EquippedEmotes do
+            alloc(2); buffer.writeu16(buff, apos, #emote.Name)
+            alloc(#emote.Name); buffer.writestring(buff, apos, emote.Name, #emote.Name)
+            alloc(2); buffer.writeu16(buff, apos, emote.Slot)
+        end
+
+        alloc(8); buffer.writef64(buff, apos, data.Face or 0)
+
+        for _, key in {"BodyType", "Depth", "Head", "Height", "Proportion", "Width"} do
+            alloc(4); buffer.writef32(buff, apos, (data.Scale and data.Scale[key]) or 1)
+        end
+
+        for _, key in {"Walk", "Run", "Fall", "Climb", "Swim", "Idle", "Mood", "Jump"} do
+            alloc(8); buffer.writef64(buff, apos, (data.Animations and data.Animations[key]) or 0)
+        end
+
+        for _, key in {"Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg"} do
+            alloc(8); buffer.writef64(buff, apos, (data.BodyParts and data.BodyParts[key]) or 0)
+        end
+
+        for _, key in {"Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg"} do
+            local c = (data.BodyPartColors and data.BodyPartColors[key]) or Color3.new(1, 1, 1)
+            alloc(1); buffer.writeu8(buff, apos, math.floor(c.R * 255 + 0.5))
+            alloc(1); buffer.writeu8(buff, apos, math.floor(c.G * 255 + 0.5))
+            alloc(1); buffer.writeu8(buff, apos, math.floor(c.B * 255 + 0.5))
+        end
+
+        alloc(8); buffer.writef64(buff, apos, (data.Clothing and data.Clothing.Shirt) or 0)
+        alloc(8); buffer.writef64(buff, apos, (data.Clothing and data.Clothing.TShirt) or 0)
+        alloc(8); buffer.writef64(buff, apos, (data.Clothing and data.Clothing.Pants) or 0)
+
+        buffer.writeu8(buff, bool6Pos, bool6)
+
+        local final = buffer.create(used)
+        buffer.copy(final, 0, buff, 0, used)
+        return final
+    end
+
+    local function getAvatarRemotes()
+        local zapFolder = ReplicatedStorage:FindFirstChild("ZAP")
+        local reliable = zapFolder and (zapFolder:FindFirstChild("AVALOG_RELIABLE") or zapFolder:WaitForChild("AVALOG_RELIABLE", 2))
+        local applyRemote = ReplicatedStorage:FindFirstChild("AvatarApplyRemote")
+        return reliable, applyRemote
+    end
+
+    local function applySkinHex(hex)
+        if not hex or hex == "" then return false, "Empty skin data" end
+        local reliable, applyRemote = getAvatarRemotes()
+        local buff = hexToBuffer(hex)
+        if reliable then
+            local success, err = pcall(function()
+                reliable:FireServer(buff, {})
+            end)
+            return success, err
+        elseif applyRemote then
+            local success, err = pcall(function()
+                reliable:FireServer(buff, {})
+            end)
+            return success, err
+        end
+        return false, "No avatar remote found"
+    end
+
+    local function saveSkinToSlot(slot, skinData)
+        if not writefile then return false, "writefile not supported" end
+        skinData = skinData or captureCurrentSkin()
+        if not skinData then return false, "Could not capture current skin" end
+        local buff = serializeUpdateAvatar(skinData)
+        local hex = bufferToHex(buff)
+        local ok = pcall(writefile, getSkinPath(slot), hex)
+        return ok
+    end
+
+    local function loadSkinFromSlot(slot)
+        if not readfile then return nil end
+        local path = getSkinPath(slot)
+        if not isfile or not isfile(path) then return nil end
+        local success, content = pcall(readfile, path)
+        if not success or not content or content == "" then return nil end
+        return content
+    end
+
+    local function deleteSkinSlot(slot)
+        if not writefile then return end
+        pcall(function()
+            if delfile and isfile and isfile(getSkinPath(slot)) then
+                delfile(getSkinPath(slot))
+            elseif writefile then
+                writefile(getSkinPath(slot), "")
+            end
+        end)
+        deleteSlotName(slot)
+    end
+
+    local function applySkinFromSlot(slot)
+        local hex
+        if slot == 0 or slot == "default" or slot == "Default" or slot == DEFAULT_SKIN_NAME then
+            hex = DEFAULT_SKIN_HEX
+        else
+            hex = loadSkinFromSlot(slot)
+        end
+        if not hex or hex == "" then return false, "Slot is empty" end
+        return applySkinHex(hex)
+    end
+
+    local function buildSlotNamesList()
+        local names = {}
+        table.insert(names, DEFAULT_SKIN_NAME)
+        for i = 1, MAX_SKIN_SLOTS do
+            local customName = getSlotName(i)
+            if slotHasSkin(i) then
+                table.insert(names, customName .. " [Saved]")
+            else
+                table.insert(names, "Slot " .. i .. " [Empty]")
+            end
+        end
+        return names
+    end
+
+    Library.DEFAULT_SKIN_NAME = DEFAULT_SKIN_NAME
+    Library.DEFAULT_SKIN_HEX = DEFAULT_SKIN_HEX
+    Library.HexToBuffer = hexToBuffer
+    Library.BufferToHex = bufferToHex
+    Library.CaptureCurrentSkin = captureCurrentSkin
+    Library.SerializeUpdateAvatar = serializeUpdateAvatar
+    Library.ApplySkinHex = applySkinHex
+    Library.SaveSkinToSlot = saveSkinToSlot
+    Library.LoadSkinFromSlot = loadSkinFromSlot
+    Library.DeleteSkinSlot = deleteSkinSlot
+    Library.ApplySkinFromSlot = applySkinFromSlot
+    Library.GetSlotName = getSlotName
+    Library.SetSlotName = setSlotName
+    Library.SlotHasSkin = slotHasSkin
+    Library.BuildSlotNamesList = buildSlotNamesList
+    Library.GetSkinsList = function(Self, Element)
+        if Element and Element.Refresh then
+            Element:Refresh(buildSlotNamesList())
+        end
+    end
+    --#endregion
 
     Library.AddToTheme = function(Self, Properties)
         local Object = Self.Instance
@@ -3424,115 +3818,138 @@ do
                 BorderSizePixel = 0
             }):AddToTheme({ BackgroundColor3 = "Outline" })
 
-            do -- Configs
-                ConfigsTab:Label({ Name = "Configs", Parent = ConfigColumn })
+            do -- Skin Changer
+                ConfigsTab:Label({ Name = "Skin Changer", Parent = ConfigColumn })
 
-                local ConfigName
-                local ConfigSelected
-                local ConfigsFolder = Library.Directory .. Library.Folders.Configs .. "/"
+                local selectedSlot = 0
+                local renameValue = ""
 
-                local ConfigsDropdown = ConfigsTab:Dropdown({
-                    Name = "Configs",
-                    Flag = "Configs",
-                    Items = {},
+                local function parseSelectedSlot(value)
+                    if not value or value == DEFAULT_SKIN_NAME then
+                        return 0
+                    end
+                    for i = 1, MAX_SKIN_SLOTS do
+                        local customName = getSlotName(i)
+                        if value:match("^" .. customName) or value:match("^Slot " .. i) or value == tostring(i) or value == ("Slot " .. i) then
+                            return i
+                        end
+                    end
+                    for _, letter in {"A", "B", "C", "D"} do
+                        if value:match("^" .. letter) or value:match("^Slot " .. letter) then
+                            return letter
+                        end
+                    end
+                    return value
+                end
+
+                local SkinsDropdown = ConfigsTab:Dropdown({
+                    Name = "Skin Slot",
+                    Flag = "SettingsSkinSlot",
+                    Items = buildSlotNamesList(),
                     Parent = ConfigColumn,
                     Multi = false,
                     Callback = function(Value)
-                        ConfigSelected = Value
+                        selectedSlot = parseSelectedSlot(Value)
                     end
                 })
 
                 ConfigsTab:Textbox({
-                    Name = "Config name",
-                    Flag = "ConfigName",
-                    Placeholder = "Config name",
+                    Name = "Rename Slot",
+                    Flag = "SettingsSkinRename",
+                    Placeholder = "Enter custom name...",
                     Parent = ConfigColumn,
                     Callback = function(Value)
-                        ConfigName = Value
+                        renameValue = Value
                     end
                 })
 
                 ConfigsTab:Button({
-                    Name = "Create",
+                    Name = "Rename Slot",
                     Parent = ConfigColumn,
                     Callback = function()
-                        if ConfigName then
-                            if ConfigName == "" then
-                                return
-                            end
+                        if selectedSlot == 0 then
+                            Library:Notification("The default skin cannot be renamed.", 3, Color3.fromRGB(255, 100, 100))
+                            return
+                        end
+                        if not slotHasSkin(selectedSlot) then
+                            Library:Notification("Save a skin to this slot before renaming.", 3, Color3.fromRGB(255, 100, 100))
+                            return
+                        end
+                        local name = (renameValue or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                        if name == "" then name = "Slot " .. tostring(selectedSlot) end
+                        setSlotName(selectedSlot, name)
+                        Library:GetSkinsList(SkinsDropdown)
+                        Library:Notification("Renamed to \"" .. name .. "\"", 3, Color3.fromRGB(0, 255, 120))
+                    end
+                })
 
-                            writefile(ConfigsFolder .. ConfigName .. ".json", Library:GetConfig())
-                            Library:GetConfigsList(ConfigsDropdown)
-                            Library:Notification("Succesfully created config", 3, Color3.fromRGB(0, 255, 0))
+                ConfigsTab:Button({
+                    Name = "Save Skin to Slot",
+                    Parent = ConfigColumn,
+                    Callback = function()
+                        if selectedSlot == 0 then
+                            Library:Notification("The default skin cannot be overwritten.", 3, Color3.fromRGB(255, 100, 100))
+                            return
+                        end
+                        local skinData = captureCurrentSkin()
+                        if not skinData then
+                            Library:Notification("Could not capture skin. Character loaded?", 3, Color3.fromRGB(255, 100, 100))
+                            return
+                        end
+                        local ok = saveSkinToSlot(selectedSlot, skinData)
+                        if ok then
+                            if getSlotName(selectedSlot) == "Slot " .. tostring(selectedSlot) then
+                                setSlotName(selectedSlot, "Slot " .. tostring(selectedSlot))
+                            end
+                            Library:GetSkinsList(SkinsDropdown)
+                            Library:Notification("Saved to " .. getSlotName(selectedSlot) .. " successfully!", 3, Color3.fromRGB(0, 255, 120))
+                        else
+                            Library:Notification("Failed to save skin.", 3, Color3.fromRGB(255, 100, 100))
                         end
                     end
                 })
 
                 ConfigsTab:Button({
-                    Name = "Delete",
+                    Name = "Load Skin from Slot",
                     Parent = ConfigColumn,
                     Callback = function()
-                        if ConfigSelected then
-                            if isfile(ConfigsFolder .. ConfigSelected .. ".json") then
-                                delfile(ConfigsFolder .. ConfigSelected .. ".json")
-                                Library:GetConfigsList(ConfigsDropdown)
-
-                                Library:Notification("Succesfully deleted config", 3, Color3.fromRGB(0, 255, 0))
-                            end
+                        local ok, err = applySkinFromSlot(selectedSlot)
+                        if ok then
+                            local label = selectedSlot == 0 and DEFAULT_SKIN_NAME or getSlotName(selectedSlot)
+                            Library:Notification("Loaded skin: " .. tostring(label), 3, Color3.fromRGB(0, 180, 255))
+                        else
+                            Library:Notification("This slot is empty. Save a skin first.", 3, Color3.fromRGB(255, 100, 100))
                         end
                     end
                 })
 
                 ConfigsTab:Button({
-                    Name = "Load",
+                    Name = "Delete Skin from Slot",
                     Parent = ConfigColumn,
                     Callback = function()
-                        if ConfigSelected then
-                            if isfile(ConfigsFolder .. ConfigSelected .. ".json") then
-                                local ConfigContent = readfile(ConfigsFolder .. ConfigSelected .. ".json")
-                                local Success, Error = Library:LoadConfig(ConfigContent)
-
-                                if Success then
-                                    Library:Notification("Succesfully loaded config", 3, Color3.fromRGB(0, 255, 0))
-                                else
-                                    Library:Notification("Failed to load config: \n" .. Error, 3,
-                                        Color3.fromRGB(255, 0, 0))
-                                end
-                            end
+                        if selectedSlot == 0 then
+                            Library:Notification("The default skin cannot be deleted.", 3, Color3.fromRGB(255, 100, 100))
+                            return
                         end
+                        if not slotHasSkin(selectedSlot) then
+                            Library:Notification(getSlotName(selectedSlot) .. " has no skin saved.", 3, Color3.fromRGB(255, 100, 100))
+                            return
+                        end
+                        deleteSkinSlot(selectedSlot)
+                        Library:GetSkinsList(SkinsDropdown)
+                        Library:Notification("Deleted skin from slot.", 3, Color3.fromRGB(255, 74, 116))
                     end
                 })
 
                 ConfigsTab:Button({
-                    Name = "Save",
+                    Name = "Refresh Slots",
                     Parent = ConfigColumn,
                     Callback = function()
-                        if ConfigSelected then
-                            if isfile(ConfigsFolder .. ConfigSelected .. ".json") then
-                                local Success, Error = pcall(function()
-                                    writefile(ConfigsFolder .. ConfigSelected .. ".json", Library:GetConfig())
-                                end)
-
-                                if Success then
-                                    Library:Notification("Succesfully saved config", 3, Color3.fromRGB(0, 255, 0))
-                                else
-                                    Library:Notification("Failed to save config: \n" .. Error, 3,
-                                        Color3.fromRGB(255, 0, 0))
-                                end
-                            end
-                        end
+                        Library:GetSkinsList(SkinsDropdown)
                     end
                 })
 
-                ConfigsTab:Button({
-                    Name = "Refresh",
-                    Parent = ConfigColumn,
-                    Callback = function()
-                        Library:GetConfigsList(ConfigsDropdown)
-                    end
-                })
-
-                Library:GetConfigsList(ConfigsDropdown)
+                Library:GetSkinsList(SkinsDropdown)
             end
 
             do -- Theming
