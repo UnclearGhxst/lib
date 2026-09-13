@@ -158,9 +158,15 @@ local function LocalAsset(NameOrPath, Name)
         warn("[Nexonix] Roblox URL rejected: " .. Source)
         return ""
     elseif not Source:find("^https?://") then
-        if isfile(Source) then return getcustomasset(Source) end
+        if isfile(Source) then
+            local Ok, Asset = pcall(getcustomasset, Source)
+            return Ok and type(Asset) == "string" and Asset ~= "" and Asset or ""
+        end
         local Existing = "nexonix/Assets/" .. _assetSafeName(Source)
-        if isfile(Existing) then return getcustomasset(Existing) end
+        if isfile(Existing) then
+            local Ok, Asset = pcall(getcustomasset, Existing)
+            return Ok and type(Asset) == "string" and Asset ~= "" and Asset or ""
+        end
         return Source
     end
 
@@ -175,7 +181,13 @@ local function LocalAsset(NameOrPath, Name)
         end
         writefile(Path, Data)
     end
-    return getcustomasset(Path)
+    local Ok, Asset = pcall(getcustomasset, Path)
+    if Ok and type(Asset) == "string" and Asset ~= "" then
+        return Asset
+    end
+
+    -- Roblox Image properties accept an empty ContentId, but not nil.
+    return ""
 end
 --#endregion
 
@@ -200,7 +212,7 @@ local Library = {
     FontSize = 16,
 
     Animation = {
-        Time = 0.3,
+        Time = 0.65,
         Style = "Quint",
         Direction = "Out"
     },
@@ -1023,7 +1035,7 @@ do
                     Parent = Data.Parent.Instance,
                     ImageColor3 = Color3.fromRGB(255, 74, 116),
                     AutoButtonColor = false,
-                    Image = LocalAsset("Colorpicker"),
+                    Image = LocalAsset("Colorpicker") or "",
                     BackgroundTransparency = 1,
                     Size = UDim2.new(0, 20, 0, 20),
                     BorderSizePixel = 0
@@ -1598,7 +1610,7 @@ do
                     Name = "\0",
                     Parent = Data.Parent.Instance,
                     AutoButtonColor = false,
-                    Image = LocalAsset("Settings"),
+                    Image = LocalAsset("Settings") or "",
                     BackgroundTransparency = 1,
                     Size = UDim2.new(0, 20, 0, 20),
                     BorderSizePixel = 0
@@ -1665,7 +1677,7 @@ do
                     Name = "\0",
                     Parent = Items["KeyButton"].Instance,
                     AnchorPoint = Vector2.new(0, 0.5),
-                    Image = LocalAsset("Keybind"),
+                    Image = LocalAsset("Keybind") or "",
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 8, 0.5, 0),
                     Size = UDim2.new(0, 18, 0, 17),
@@ -2484,7 +2496,7 @@ do
                     Name = "\0",
                     Parent = NewKey.Instance,
                     AnchorPoint = Vector2.new(0, 0.5),
-                    Image = LocalAsset("Checkbox"),
+                    Image = LocalAsset("Checkbox") or "",
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 0, 0.5, 0),
                     Size = UDim2.new(0, 14, 0, 14),
@@ -2752,7 +2764,7 @@ do
                     Name = "\0",
                     Parent = Items["_Avatar"].Instance,
                     AnchorPoint = Vector2.new(0.5, 0.5),
-                    Image = LocalAsset("Settings"),
+                    Image = LocalAsset("Settings") or "",
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0.5, 0, 0.5, 0),
                     Size = UDim2.new(1, -12, 1, -12),
@@ -2847,7 +2859,7 @@ do
                     Parent = Items["Search"].Instance,
                     ImageColor3 = Library.Theme["Dark Text"],
                     AnchorPoint = Vector2.new(0, 0.5),
-                    Image = LocalAsset("Search"),
+                    Image = LocalAsset("Search") or "",
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 12, 0.5, 0),
                     Size = UDim2.new(0, 16, 0, 16),
@@ -3105,6 +3117,9 @@ do
 
             local Settings = {
                 IsOpen = false,
+                Active = false,
+                Window = Window,
+                Debounce = false,
                 Items = {}
             }
             do
@@ -3169,57 +3184,68 @@ do
 
                 Settings.Items = SettingsItems
 
-                local Debounce = false
-
                 local SettingWindow = SettingsItems["SettingsWindow"].Instance
                 local SettingButton = Items["_Avatar"].Instance
 
-                local RenderStepped
-
                 function Settings:SetOpen(Bool)
-                    if Debounce then
+                    -- Settings behaves like a real main tab:
+                    -- clicking the button selects it; clicking another page
+                    -- automatically makes Settings the old page.
+                    if not Bool then
+                        if Settings.Active then
+                            return
+                        end
                         return
                     end
 
-                    Settings.IsOpen = Bool
-                    Debounce = true
-
-                    if Settings.IsOpen then
-                        -- Settings is now a full in-window page, not a floating popup.
-                        if Window.Current then
-                            Window.Current.Items["Page"].Instance.Visible = false
-                            Window.Current.Items["Inactive"]:Tween({ BackgroundTransparency = 1 })
-                            Window.Current.Items["Inline"]:Tween({ BackgroundTransparency = 1 })
-                            Window.Current.Items["Icon"]:Tween({ ImageColor3 = Library.Theme["Dark Icon"] })
-                        end
-
-                        SettingWindow.Parent = Items["Content"].Instance
-                        SettingWindow.Position = UDim2.new(0, 0, 0, 0)
-                        SettingWindow.Size = UDim2.new(1, 0, 1, 0)
-                        SettingWindow.Visible = true
-
-                        SettingsItems["SettingsWindow"]:FadeDescendants(true, function()
-                            Debounce = false
-                        end)
-
-                        Library.OpenFrames[Settings] = Settings
-                    else
-                        SettingsItems["SettingsWindow"]:FadeDescendants(false, function()
-                            SettingWindow.Parent = Library.UnusedHolder.Instance
-                            SettingWindow.Visible = false
-
-                            if Window.Current then
-                                Window.Current.Items["Page"].Instance.Visible = true
-                                Window.Current.Items["Inactive"]:Tween({ BackgroundTransparency = 1 })
-                                Window.Current.Items["Inline"]:Tween({ BackgroundTransparency = 1 })
-                                Window.Current.Items["Icon"]:Tween({ ImageColor3 = Library.Theme["Accent"] })
-                            end
-
-                            Debounce = false
-                        end)
-
-                        Library.OpenFrames[Settings] = nil
+                    if Settings.Debounce or Settings.Window.Current == Settings then
+                        return
                     end
+
+                    Settings.Debounce = true
+
+                    local Old = Settings.Window.Current
+
+                    if Old and Old ~= Settings then
+                        if Old.IsSettings then
+                            local OldWindow = Old.Items and Old.Items["SettingsWindow"]
+                            if OldWindow and OldWindow.Instance then
+                                OldWindow.Instance.Visible = false
+                                OldWindow.Instance.Parent = Library.UnusedHolder.Instance
+                            end
+                            Old.Active = false
+                            Old.IsOpen = false
+                        else
+                            Old:TweenSides(false)
+                            Old.Items["Inactive"]:Tween({ BackgroundTransparency = 1 })
+                            Old.Items["Inline"]:Tween({ BackgroundTransparency = 1 })
+                            Old.Items["Icon"]:Tween({ ImageColor3 = Library.Theme["Dark Icon"] })
+                            Old.Items["Page"]:Tween({ Position = UDim2.new(0, 0, 0, 50) })
+                            Old.Items["Page"]:FadeDescendants(false, function()
+                                Old.Items["Page"].Instance.Parent = Library.UnusedHolder.Instance
+                            end)
+                            Old.Active = false
+                        end
+                    end
+
+                    -- Open Settings with the same slower page entrance animation.
+                    SettingWindow.Parent = Items["Content"].Instance
+                    SettingWindow.Position = UDim2.new(0, 0, 0, 50)
+                    SettingWindow.Size = UDim2.new(1, 0, 1, 0)
+                    SettingWindow.Visible = true
+
+                    SettingsItems["SettingsWindow"]:FadeDescendants(false)
+                    SettingsItems["SettingsWindow"]:Tween({
+                        Position = UDim2.new(0, 0, 0, 0)
+                    })
+                    SettingsItems["SettingsWindow"]:FadeDescendants(true, function()
+                        Settings.Debounce = false
+                    end)
+
+                    Settings.Active = true
+                    Settings.IsOpen = true
+                    Settings.Window.Current = Settings
+                    Library.OpenFrames[Settings] = Settings
 
                     local Descendants = SettingWindow:GetDescendants()
                     table.insert(Descendants, SettingWindow)
@@ -3228,13 +3254,12 @@ do
                         if Value.ClassName:find("UI") then
                             continue
                         end
-
-                        Value.ZIndex = Settings.IsOpen and 4 or 1
+                        Value.ZIndex = 4
                     end
                 end
 
                 Items["_Avatar"]:Connect("MouseButton1Down", function()
-                    Settings:SetOpen(not Settings.IsOpen)
+                    Settings:SetOpen(true)
                 end)
 
                 local SettingsTabs = {}
@@ -3300,12 +3325,25 @@ do
 
                     function NewTab:Turn(Bool)
                         NewTab.Active = Bool
-                        NewTab.Items["Content"].Instance.Visible = Bool
 
                         if Bool then
                             NewTab.Items["Inactive"]:Tween({ BackgroundColor3 = Library.Theme["Accent"] })
+
+                            NewTab.Items["Content"].Instance.Position = UDim2.new(0, 0, 0, 50)
+                            NewTab.Items["Content"].Instance.Visible = true
+                            NewTab.Items["Content"]:FadeDescendants(false)
+                            NewTab.Items["Content"]:FadeDescendants(true)
+                            NewTab.Items["Content"]:Tween({
+                                Position = UDim2.new(0, 0, 0, 0)
+                            })
                         else
                             NewTab.Items["Inactive"]:Tween({ BackgroundColor3 = Library.Theme["Element"] })
+                            NewTab.Items["Content"]:Tween({
+                                Position = UDim2.new(0, 0, 0, 50)
+                            })
+                            NewTab.Items["Content"]:FadeDescendants(false, function()
+                                NewTab.Items["Content"].Instance.Visible = false
+                            end)
                         end
                     end
 
@@ -3827,22 +3865,31 @@ do
             end
 
             function Page:Turn()
-                -- Switching to a normal tab always closes the Settings page.
-                if Settings and Settings.IsOpen then
-                    Settings.IsOpen = false
+                local Old = Page.Window.Current
 
-                    local SettingsGui = Settings.Items and Settings.Items["SettingsWindow"]
-                    if SettingsGui and SettingsGui.Instance then
-                        SettingsGui.Instance.Visible = false
-                        SettingsGui.Instance.Parent = Library.UnusedHolder.Instance
+                if Old == Page then
+                    return
+                end
+
+                if Page.Debounce then
+                    return
+                end
+
+                -- Settings is a real Window.Current page. Switching to a
+                -- normal page removes it immediately and then uses the normal
+                -- page transition below.
+                if Old and Old.IsSettings then
+                    local SettingsWindow = Old.Items and Old.Items["SettingsWindow"]
+                    if SettingsWindow and SettingsWindow.Instance then
+                        SettingsWindow.Instance.Visible = false
+                        SettingsWindow.Instance.Parent = Library.UnusedHolder.Instance
+                        SettingsWindow.Instance.Position = UDim2.new(0, 0, 0, 0)
                     end
 
-                    Library.OpenFrames[Settings] = nil
-
-                    -- Restore the currently displayed main page immediately.
-                    if Page.Window.Current and Page.Window.Current.Items["Page"] then
-                        Page.Window.Current.Items["Page"].Instance.Visible = true
-                    end
+                    Old.Active = false
+                    Old.IsOpen = false
+                    Old.Debounce = false
+                    Library.OpenFrames[Old] = nil
                 end
 
                 local Old = Page.Window.Current
@@ -4245,7 +4292,7 @@ do
                         Name = "\0",
                         Parent = Items["SubElements"].Instance,
                         AutoButtonColor = false,
-                        Image = LocalAsset("SettingsButton"),
+                        Image = LocalAsset("SettingsButton") or "",
                         BackgroundTransparency = 1,
                         Size = UDim2.new(0, 20, 0, 20),
                         BorderSizePixel = 0
@@ -5158,7 +5205,7 @@ do
                     Name = "\0",
                     Parent = Items["RealDropdown"].Instance,
                     AnchorPoint = Vector2.new(1, 0.5),
-                    Image = LocalAsset("DropdownArrow"),
+                    Image = LocalAsset("DropdownArrow") or "",
                     BackgroundTransparency = 1,
                     Position = UDim2.new(1, -6, 0.5, 0),
                     Size = UDim2.new(0, 14, 0, 14),
@@ -5295,7 +5342,7 @@ do
                     Name = "\0",
                     Parent = OptionButton.Instance,
                     AnchorPoint = Vector2.new(1, 0.5),
-                    Image = LocalAsset("Checkbox"),
+                    Image = LocalAsset("Checkbox") or "",
                     BackgroundTransparency = 1,
                     Position = UDim2.new(-1, 0, 0.5, 0),
                     Size = UDim2.new(0, 14, 0, 14),
