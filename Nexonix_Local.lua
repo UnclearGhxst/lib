@@ -1383,7 +1383,27 @@ do
     end
 
     local function saveSkinToSlot(slot, skinData)
-        return saveSkinByName(getSlotName(slot), skinData)
+        local slotName = getSlotName(slot)
+        skinData = skinData or captureCurrentSkin()
+        if not skinData then
+            return false, "Could not capture current skin"
+        end
+
+        local currentHex = bufferToHex(serializeUpdateAvatar(skinData))
+        for _, savedName in listSkinNames() do
+            if savedName ~= slotName then
+                local savedHex = loadSkinByName(savedName)
+                if savedHex == currentHex then
+                    return false, "DUPLICATE", savedName
+                end
+            end
+        end
+
+        if not skinExists(slotName) and #listSkinNames() >= MAX_SKIN_SLOTS then
+            return false, "LIMIT"
+        end
+
+        return saveSkinByName(slotName, skinData)
     end
 
     local function applySkinFromSlot(slot)

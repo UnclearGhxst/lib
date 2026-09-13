@@ -147,8 +147,10 @@ do
                         Library:Notification("Saved " .. tostring(savedName) .. "!", 3,
                             Color3.fromRGB(0, 255, 120))
                     else
-                        Library:Notification("Failed to save skin: " .. tostring(err or "error"), 3,
-                            Color3.fromRGB(255, 100, 100))
+                        local message = err == "DUPLICATE" and "You already saved this skin."
+                            or err == "LIMIT" and "You can only save 6 skins."
+                            or "Failed to save skin: " .. tostring(err or "error")
+                        Library:Notification(message, 3, Color3.fromRGB(255, 100, 100))
                     end
                 else
                     Library:Notification("Saved skin to Slot " .. tostring(slot), 3, Color3.fromRGB(0, 255, 120))
