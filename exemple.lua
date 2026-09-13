@@ -70,14 +70,31 @@ do
             return val
         end
 
+        -- Helper: get a clean display name from a raw dropdown value
+        local function getSlotDisplayName(val)
+            if not val or val == (Library.DEFAULT_SKIN_NAME or "Big Dick") then
+                return Library.DEFAULT_SKIN_NAME or "Big Dick"
+            end
+            for i = 1, 6 do
+                local name = Library.GetSlotName and Library.GetSlotName(i) or ("Slot " .. i)
+                if val:find(name, 1, true) or val:find("Slot " .. i, 1, true) or val == tostring(i) then
+                    return name
+                end
+            end
+            return val
+        end
+
         -- Dropdown menu: Skin Slot
-        local SkinSlotDropdown = SkinManager:Dropdown({
+        local SkinSlotDropdown
+        SkinSlotDropdown = SkinManager:Dropdown({
             Name = "Skin Slot",
             Flag = "SkinSlot",
             Default = (Library.BuildSlotNamesList and Library.BuildSlotNamesList()[1]) or "A",
             Items = (Library.BuildSlotNamesList and Library.BuildSlotNamesList()) or { "A", "B", "C", "D" },
             Callback = function(Value)
                 selectedSkinSlot = parseSlot(Value)
+                -- Dynamically update the dropdown label to the selected skin name
+                SkinSlotDropdown:SetText("Skin Slot (" .. tostring(getSlotDisplayName(Value)) .. ")")
             end
         })
 
@@ -111,6 +128,8 @@ do
                     if Library.GetSkinsList then
                         Library:GetSkinsList(SkinSlotDropdown)
                     end
+                    -- Update dropdown label to the new name
+                    SkinSlotDropdown:SetText("Skin Slot (" .. newName .. ")")
                     Library:Notification("Renamed slot to \"" .. newName .. "\"", 3, Color3.fromRGB(0, 255, 120))
                 else
                     Library:Notification("Please type a slot name first!", 3, Color3.fromRGB(255, 100, 100))
