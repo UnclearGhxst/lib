@@ -86,6 +86,13 @@ do
 
         -- Dropdown menu: Skin Slot
         local SkinSlotDropdown
+
+        local function updateSkinSlotLabel(value)
+            if SkinSlotDropdown then
+                SkinSlotDropdown:SetText("Skin Slot (" .. tostring(getSlotDisplayName(value)) .. ")")
+            end
+        end
+
         SkinSlotDropdown = SkinManager:Dropdown({
             Name = "Skin Slot",
             Flag = "SkinSlot",
@@ -94,12 +101,10 @@ do
             Items = (Library.BuildSlotNamesList and Library.BuildSlotNamesList()) or { "A", "B", "C", "D" },
             Callback = function(Value)
                 selectedSkinSlot = parseSlot(Value)
-                -- Dynamically update the dropdown label to the selected skin name
-                if SkinSlotDropdown then
-                    SkinSlotDropdown:SetText("Skin Slot (" .. tostring(getSlotDisplayName(Value)) .. ")")
-                end
+                updateSkinSlotLabel(Value)
             end
         })
+        updateSkinSlotLabel(SkinSlotDropdown.Value)
 
         -- Optional name used when saving the selected slot
         SkinManager:Textbox({
