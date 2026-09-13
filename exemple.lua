@@ -107,7 +107,7 @@ do
             Name = "Skin Slot",
             Flag = "SkinSlot",
             Scrollable = #(Library.ListSkinNames and Library.ListSkinNames() or {}) > 5,
-            Default = (Library.GetSlotName and Library.GetSlotName(1)) or "Slot 1",
+            Default = Library.DEFAULT_SKIN_NAME or "Big Dick",
             Items = (Library.BuildSlotNamesList and Library.BuildSlotNamesList()) or { "A", "B", "C", "D" },
             Callback = function(Value)
                 selectedSkinSlot = parseSlot(Value)

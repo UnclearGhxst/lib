@@ -1368,12 +1368,12 @@ do
             return string.lower(left) < string.lower(right)
         end)
 
+        table.insert(emptySlots, DEFAULT_SKIN_NAME)
         table.sort(emptySlots, function(left, right)
             return string.lower(left) < string.lower(right)
         end)
 
         local names = savedNames
-        table.insert(names, DEFAULT_SKIN_NAME)
         for _, slotName in emptySlots do
             table.insert(names, slotName)
         end
