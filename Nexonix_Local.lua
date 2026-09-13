@@ -1277,14 +1277,14 @@ do
         if not name or name == DEFAULT_SKIN_NAME then return false, "Cannot delete default" end
         name = sanitizeSkinName(name)
         local path = getSkinPath(name)
-        pcall(function()
-            if delfile and isfile and isfile(path) then
-                delfile(path)
-            elseif writefile then
-                writefile(path, "")
-            end
-        end)
-        return true
+        if not isfile or not isfile(path) then
+            return true
+        end
+        if not delfile then
+            return false, "delfile not supported"
+        end
+        local success, errorMessage = pcall(delfile, path)
+        return success, errorMessage
     end
 
     -- Rename: copy file to new name, delete old
@@ -1414,7 +1414,15 @@ do
     end
 
     local function deleteSkinSlot(slot)
-        return deleteSkinByName(getSlotName(slot))
+        local slotKey = tostring(slot)
+        local success, errorMessage = deleteSkinByName(getSlotName(slot))
+        if not success then
+            return false, errorMessage
+        end
+
+        SlotNames[slotKey] = nil
+        saveSlotNames()
+        return true
     end
 
     local function setSlotName(slot, name)

@@ -215,11 +215,15 @@ do
                     return
                 end
                 if Library.DeleteSkinSlot then
-                    Library.DeleteSkinSlot(slot)
-                    if Library.GetSkinsList then
-                        Library:GetSkinsList(SkinSlotDropdown)
+                    local deleted, deleteError = Library.DeleteSkinSlot(slot)
+                    if not deleted then
+                        Library:Notification("Failed to delete skin: " .. tostring(deleteError or "error"), 3,
+                            Color3.fromRGB(255, 100, 100))
+                        return
                     end
-                    Library:Notification("Deleted skin from slot " .. tostring(slot) .. ".", 3,
+                    local emptySlotName = "Slot " .. tostring(slot)
+                    refreshSkinSlotDropdown(emptySlotName)
+                    Library:Notification("Deleted skin from " .. emptySlotName .. ".", 3,
                         Color3.fromRGB(255, 74, 116))
                 else
                     Library:Notification("Deleted skin from Slot " .. tostring(slot), 3, Color3.fromRGB(255, 74, 116))
