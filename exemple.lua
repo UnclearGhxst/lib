@@ -93,6 +93,16 @@ do
             end
         end
 
+        local function refreshSkinSlotDropdown(value)
+            if Library.GetSkinsList then
+                Library:GetSkinsList(SkinSlotDropdown)
+            end
+            if value and SkinSlotDropdown.Set then
+                SkinSlotDropdown:Set(value)
+            end
+            updateSkinSlotLabel(value or SkinSlotDropdown.Value)
+        end
+
         SkinSlotDropdown = SkinManager:Dropdown({
             Name = "Skin Slot",
             Flag = "SkinSlot",
@@ -144,24 +154,14 @@ do
                 if Library.SaveSkinToSlot then
                     local ok, err = Library.SaveSkinToSlot(slot)
                     if ok then
-                        if Library.GetSkinsList then
-                            Library:GetSkinsList(SkinSlotDropdown)
-                        end
                         local savedName = Library.GetSlotName and Library.GetSlotName(slot) or tostring(slot)
-                        if SkinSlotDropdown.Set then
-                            SkinSlotDropdown:Set(savedName)
-                        end
+                        refreshSkinSlotDropdown(savedName)
                         SkinNameInput:Set("")
                         Library:Notification("Saved " .. tostring(savedName) .. "!", 3,
                             Color3.fromRGB(0, 255, 120))
                     else
-                        if Library.GetSkinsList then
-                            Library:GetSkinsList(SkinSlotDropdown)
-                        end
                         local currentName = Library.GetSlotName and Library.GetSlotName(slot)
-                        if currentName and SkinSlotDropdown.Set then
-                            SkinSlotDropdown:Set(currentName)
-                        end
+                        refreshSkinSlotDropdown(currentName)
                         local message = err == "DUPLICATE" and "You already saved this skin."
                             or err == "LIMIT" and "You can only save 6 skins."
                             or "Failed to save skin: " .. tostring(err or "error")
