@@ -139,7 +139,12 @@ do
                     return
                 end
 
-                local newName = (Library.Flags["SaveSkinName"] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                local enteredName = SkinNameInput.Items
+                    and SkinNameInput.Items["Input"]
+                    and SkinNameInput.Items["Input"].Instance.Text
+                    or Library.Flags["SaveSkinName"]
+                    or ""
+                local newName = tostring(enteredName):gsub("^%s+", ""):gsub("%s+$", "")
                 if newName ~= "" and Library.SetSlotName then
                     local renamed, renameError = Library.SetSlotName(slot, newName)
                     if not renamed then
