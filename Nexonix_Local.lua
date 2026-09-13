@@ -30,6 +30,7 @@ end
 local Directory = "nexonix"
 local Folders = {
     "/Configs",
+    "/Skins",
     "/Assets",
 }
 
@@ -46,7 +47,7 @@ end
 Library.Directory = "nexonix"
 Library.Folders = {
     Configs = "/Configs",
-    Skins   = "/Skins",
+    Skins   = "/skins",
     Assets  = "/Assets",
 }
 
@@ -208,7 +209,8 @@ local Library = {
     Directory = "nexonix",
     Folders = {
         Assets = "/Assets",
-        Configs = "/Configs"
+        Configs = "/Configs",
+        Skins = "/skins"
     },
 
     FontSize = 16,
@@ -909,10 +911,10 @@ do
         Element:Refresh(ReturnList)
     end
 
-    --#region Skin Changer System (ported from yes.lua)
+    --#region Skin Changer System
     local DEFAULT_SKIN_NAME = "Big Dick"
     local DEFAULT_SKIN_HEX = "01 01 04 00 0D 00 00 C0 E2 74 22 0C 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 09 00 07 00 0D 00 00 F8 9D 0E 60 0A 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 0C 00 0A 00 00 00 00 60 26 6D 67 0D 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 01 00 00 00 00 38 A1 CC 46 07 42 0D 00 41 63 63 65 73 73 6F 72 79 54 79 70 65 07 00 00 00 00 00 00 00 00 00 00 00 48 E1 7A 3F 00 00 80 3F 00 00 80 3F 00 00 80 3F 00 00 00 00 00 00 80 3F 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 C0 7C 36 E6 22 5F D5 42 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 78 2F 81 3A 0B 42 00 00 00 00 00 00 00 00 00 00 54 78 B4 E7 10 42 00 00 74 D1 B3 E7 10 42 00 00 C0 39 F1 B3 E2 41 00 00 40 E9 F5 B3 E2 41 00 00 68 5C FC C1 0D 42 00 00 D8 5D FC C1 0D 42 FF FF FF 0D 69 AC F4 CD 2F F4 CD 2F 4B 97 4B 4B 97 4B 00 00 00 03 10 81 C9 41 00 00 00 00 00 00 00 00 00 00 80 BE 1A 81 C9 41"
-    local MAX_SKIN_SLOTS = 6
+    local SKIN_EXT = ".bin"
 
     local ACCESSORY_TYPE_NAMES = {}
     for _, item in Enum.AccessoryType:GetEnumItems() do
@@ -943,54 +945,52 @@ do
         return table.concat(parts, " ")
     end
 
+    -- Returns the executor workspace skin folder and ensures it exists.
     local function getSkinFolder()
-        local folder = (isfolder and isfolder("UwUHub/Skins") and "UwUHub/Skins") or (Library.Directory .. (Library.Folders.Skins or "/Skins"))
-        if makefolder and not isfolder(folder) then
+        local folder = "skins"
+        if makefolder and isfolder and not isfolder(folder) then
             pcall(makefolder, folder)
         end
         return folder
     end
 
-    local function getSkinPath(slot)
-        return getSkinFolder() .. "/skin_" .. tostring(slot) .. ".json"
+    local function sanitizeSkinName(name)
+        local cleanName = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        cleanName = cleanName:gsub("[^%w%._%- ]", "_")
+        return cleanName
     end
 
-    local function loadSkinSlotNames()
-        if not readfile then return {} end
-        local path = getSkinFolder() .. "/names.json"
-        if not isfile or not isfile(path) then return {} end
-        local success, content = pcall(readfile, path)
-        if not success or not content then return {} end
-        local ok, data = pcall(function() return HttpService:JSONDecode(content) end)
-        if ok and type(data) == "table" then return data end
-        return {}
+    -- Returns the full file path for a named skin
+    local function getSkinPath(name)
+        return getSkinFolder() .. "/" .. sanitizeSkinName(name) .. SKIN_EXT
     end
 
-    local function saveSkinSlotNames(names)
-        if not writefile then return end
-        pcall(writefile, getSkinFolder() .. "/names.json", HttpService:JSONEncode(names))
+    -- Lists all saved skin names from the Skins folder
+    local function listSkinNames()
+        local names = {}
+        local folder = getSkinFolder()
+        if listfiles and isfolder and isfolder(folder) then
+            local ok, files = pcall(listfiles, folder)
+            if ok and files then
+                for _, path in files do
+                    -- Extract just the filename without extension
+                    local fname = path:match("([^/\\]+)$") or path
+                    if fname:sub(-#SKIN_EXT) == SKIN_EXT then
+                        local skinName = fname:sub(1, #fname - #SKIN_EXT)
+                        if skinName ~= "" then
+                            table.insert(names, skinName)
+                        end
+                    end
+                end
+            end
+        end
+        return names
     end
 
-    local function getSlotName(slot)
-        local names = loadSkinSlotNames()
-        return names[tostring(slot)] or ("Slot " .. tostring(slot))
-    end
-
-    local function setSlotName(slot, name)
-        local names = loadSkinSlotNames()
-        names[tostring(slot)] = name
-        saveSkinSlotNames(names)
-    end
-
-    local function deleteSlotName(slot)
-        local names = loadSkinSlotNames()
-        names[tostring(slot)] = nil
-        saveSkinSlotNames(names)
-    end
-
-    local function slotHasSkin(slot)
+    -- Returns true if a skin with the given name exists
+    local function skinExists(name)
         if not isfile then return false end
-        return isfile(getSkinPath(slot))
+        return isfile(getSkinPath(name))
     end
 
     local function captureCurrentSkin()
@@ -1216,67 +1216,165 @@ do
             return success, err
         elseif applyRemote then
             local success, err = pcall(function()
-                reliable:FireServer(buff, {})
+                applyRemote:FireServer(buff, {})
             end)
             return success, err
         end
         return false, "No avatar remote found"
     end
 
-    local function saveSkinToSlot(slot, skinData)
+    -- Save current avatar skin to Skins/<name>.bin
+    local function saveSkinByName(name, skinData)
         if not writefile then return false, "writefile not supported" end
+        name = sanitizeSkinName(name)
+        if name == "" then return false, "No name provided" end
         skinData = skinData or captureCurrentSkin()
         if not skinData then return false, "Could not capture current skin" end
         local buff = serializeUpdateAvatar(skinData)
         local hex = bufferToHex(buff)
-        local ok = pcall(writefile, getSkinPath(slot), hex)
+        local ok = pcall(writefile, getSkinPath(name), hex)
         return ok
     end
 
-    local function loadSkinFromSlot(slot)
+    -- Load hex from Skins/<name>.bin
+    local function loadSkinByName(name)
         if not readfile then return nil end
-        local path = getSkinPath(slot)
+        name = sanitizeSkinName(name)
+        if name == "" then return nil end
+        if name == DEFAULT_SKIN_NAME then return DEFAULT_SKIN_HEX end
+        local path = getSkinPath(name)
         if not isfile or not isfile(path) then return nil end
         local success, content = pcall(readfile, path)
         if not success or not content or content == "" then return nil end
         return content
     end
 
-    local function deleteSkinSlot(slot)
-        if not writefile then return end
-        pcall(function()
-            if delfile and isfile and isfile(getSkinPath(slot)) then
-                delfile(getSkinPath(slot))
-            elseif writefile then
-                writefile(getSkinPath(slot), "")
-            end
-        end)
-        deleteSlotName(slot)
-    end
-
-    local function applySkinFromSlot(slot)
+    -- Apply skin from Skins/<name>.bin
+    local function applySkinByName(name)
         local hex
-        if slot == 0 or slot == "default" or slot == "Default" or slot == DEFAULT_SKIN_NAME then
+        if not name or name == DEFAULT_SKIN_NAME then
             hex = DEFAULT_SKIN_HEX
         else
-            hex = loadSkinFromSlot(slot)
+            hex = loadSkinByName(name)
         end
-        if not hex or hex == "" then return false, "Slot is empty" end
+        if not hex or hex == "" then return false, "Skin not found" end
         return applySkinHex(hex)
     end
 
-    local function buildSlotNamesList()
-        local names = {}
-        table.insert(names, DEFAULT_SKIN_NAME)
-        for i = 1, MAX_SKIN_SLOTS do
-            local customName = getSlotName(i)
-            if slotHasSkin(i) then
-                table.insert(names, customName .. " [Saved]")
-            else
-                table.insert(names, "Slot " .. i .. " [Empty]")
+    -- Delete Skins/<name>.bin
+    local function deleteSkinByName(name)
+        if not name or name == DEFAULT_SKIN_NAME then return false, "Cannot delete default" end
+        name = sanitizeSkinName(name)
+        local path = getSkinPath(name)
+        pcall(function()
+            if delfile and isfile and isfile(path) then
+                delfile(path)
+            elseif writefile then
+                writefile(path, "")
             end
+        end)
+        return true
+    end
+
+    -- Rename: copy file to new name, delete old
+    local function renameSkin(oldName, newName)
+        if not oldName or not newName or newName == "" then return false, "Invalid names" end
+        if oldName == DEFAULT_SKIN_NAME then return false, "Cannot rename default" end
+        oldName = sanitizeSkinName(oldName)
+        newName = sanitizeSkinName(newName)
+        if newName == "" then return false, "Invalid names" end
+        local hex = loadSkinByName(oldName)
+        if not hex then return false, "Skin not found" end
+        local ok = pcall(writefile, getSkinPath(newName), hex)
+        if ok then
+            pcall(function()
+                if delfile and isfile and isfile(getSkinPath(oldName)) then
+                    delfile(getSkinPath(oldName))
+                end
+            end)
+        end
+        return ok
+    end
+
+    -- Build dropdown list: just the skin names from the folder
+    local function buildSkinDropdownList()
+        local names = listSkinNames()
+        if #names == 0 then
+            return { DEFAULT_SKIN_NAME }
+        end
+        -- Insert default at the front
+        table.insert(names, 1, DEFAULT_SKIN_NAME)
+        return names
+    end
+
+    local MAX_SKIN_SLOTS = 6
+    local SlotNames = {}
+    local SlotNamesPath = getSkinFolder() .. "/.slots.json"
+
+    if readfile and isfile and isfile(SlotNamesPath) then
+        local Success, Data = pcall(function()
+            return HttpService:JSONDecode(readfile(SlotNamesPath))
+        end)
+        if Success and type(Data) == "table" then
+            SlotNames = Data
+        end
+    end
+
+    local function saveSlotNames()
+        if writefile then
+            pcall(writefile, SlotNamesPath, HttpService:JSONEncode(SlotNames))
+        end
+    end
+
+    local function getSlotName(slot)
+        local key = tostring(slot)
+        return SlotNames[key] or "Slot " .. key
+    end
+
+    local function buildSlotNamesList()
+        local names = { DEFAULT_SKIN_NAME }
+        for slot = 1, MAX_SKIN_SLOTS do
+            table.insert(names, getSlotName(slot))
         end
         return names
+    end
+
+    local function slotHasSkin(slot)
+        return skinExists(getSlotName(slot))
+    end
+
+    local function saveSkinToSlot(slot, skinData)
+        return saveSkinByName(getSlotName(slot), skinData)
+    end
+
+    local function applySkinFromSlot(slot)
+        if slot == 0 then
+            return applySkinByName(DEFAULT_SKIN_NAME)
+        end
+        return applySkinByName(getSlotName(slot))
+    end
+
+    local function deleteSkinSlot(slot)
+        return deleteSkinByName(getSlotName(slot))
+    end
+
+    local function setSlotName(slot, name)
+        local oldName = getSlotName(slot)
+        local cleanName = sanitizeSkinName(name)
+        if cleanName == "" then
+            return false, "Invalid name"
+        end
+
+        if oldName ~= cleanName and skinExists(oldName) then
+            local Success, Error = renameSkin(oldName, cleanName)
+            if not Success then
+                return false, Error
+            end
+        end
+
+        SlotNames[tostring(slot)] = cleanName
+        saveSlotNames()
+        return true
     end
 
     Library.DEFAULT_SKIN_NAME = DEFAULT_SKIN_NAME
@@ -1286,17 +1384,27 @@ do
     Library.CaptureCurrentSkin = captureCurrentSkin
     Library.SerializeUpdateAvatar = serializeUpdateAvatar
     Library.ApplySkinHex = applySkinHex
-    Library.SaveSkinToSlot = saveSkinToSlot
-    Library.LoadSkinFromSlot = loadSkinFromSlot
-    Library.DeleteSkinSlot = deleteSkinSlot
-    Library.ApplySkinFromSlot = applySkinFromSlot
+    Library.SaveSkinByName = saveSkinByName
+    Library.LoadSkinByName = loadSkinByName
+    Library.ApplySkinByName = applySkinByName
+    Library.DeleteSkinByName = deleteSkinByName
+    Library.RenameSkin = renameSkin
+    Library.ListSkinNames = listSkinNames
+    Library.BuildSkinDropdownList = buildSkinDropdownList
+    Library.BuildSlotNamesList = buildSlotNamesList
     Library.GetSlotName = getSlotName
     Library.SetSlotName = setSlotName
+    Library.SaveSkinToSlot = saveSkinToSlot
+    Library.ApplySkinFromSlot = applySkinFromSlot
+    Library.DeleteSkinSlot = deleteSkinSlot
     Library.SlotHasSkin = slotHasSkin
-    Library.BuildSlotNamesList = buildSlotNamesList
+    Library.SkinExists = skinExists
+    Library.GetSkinFolder = getSkinFolder
+    Library.GetSkinPath = getSkinPath
+    -- Refresh a dropdown with the current skin list
     Library.GetSkinsList = function(Self, Element)
         if Element and Element.Refresh then
-            Element:Refresh(buildSlotNamesList())
+            Element:Refresh(buildSkinDropdownList())
         end
     end
     --#endregion
@@ -5856,13 +5964,54 @@ do
             end
 
             function Dropdown:Refresh(List)
+                local CurrentValue = Dropdown.Value
+                List = List or {}
+
                 for Index, Value in Dropdown.Options do
                     Dropdown:Remove(Value.Name)
                 end
 
+                Dropdown.Options = {}
+                Dropdown.OptionItems = List
                 for Index, Value in List do
                     Dropdown:Add(Value)
                 end
+
+                if not Dropdown.Multi and Dropdown.Options[CurrentValue] then
+                    Dropdown:Set(CurrentValue)
+                end
+            end
+
+            function Dropdown:RenameOption(OldValue, NewValue)
+                if Dropdown.Multi or OldValue == NewValue then
+                    return false
+                end
+
+                local OptionData = Dropdown.Options[OldValue]
+                NewValue = tostring(NewValue or "")
+                if not OptionData or NewValue == "" or Dropdown.Options[NewValue] then
+                    return false
+                end
+
+                Dropdown.Options[OldValue] = nil
+                Dropdown.Options[NewValue] = OptionData
+                OptionData.Name = NewValue
+                OptionData.Text.Instance.Text = NewValue
+
+                if Dropdown.Value == OldValue then
+                    Dropdown.Value = NewValue
+                    Flags[Dropdown.Flag] = NewValue
+                    Items["Value"].Instance.Text = NewValue
+                end
+
+                for Index, Value in Dropdown.OptionItems do
+                    if Value == OldValue then
+                        Dropdown.OptionItems[Index] = NewValue
+                        break
+                    end
+                end
+
+                return true
             end
 
             function Dropdown:SetText(Text)
