@@ -400,6 +400,10 @@ do
         getgenv().Library = nil
     end
 
+    -- Alias used by the Settings -> Other -> Unload button.
+    -- Keep the original Exit method for compatibility.
+    Library.Unload = Library.Exit
+
     Library.Create = function(Self, Class, Properties)
         local Data = {
             Class = Class,
